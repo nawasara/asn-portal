@@ -6,7 +6,7 @@ Portalnya sendiri aplikasi Astro yang terpisah. Paket ini memegang seluruh data 
 
 Bekerja bersama `nawasara/api` (jalur JWT pegawai dan pembatas rute).
 
-## Status v0.1.0
+## Status v0.1.1
 
 | Fitur | Status |
 |---|---|
@@ -15,7 +15,7 @@ Bekerja bersama `nawasara/api` (jalur JWT pegawai dan pembatas rute).
 | `POST /account/reauth`: parameter paksa masuk ulang | ✅ |
 | Katalog aplikasi, FAQ, dokumen hukum berversi + endpoint publik | ✅ |
 | Data awal dari portal lama (5 aplikasi, 7 bantuan) | ✅ `ContentSeeder` |
-| Halaman panel untuk mengelola konten | ⏳ |
+| Halaman panel: Katalog Aplikasi, Bantuan, Dokumen Hukum (terbit dengan sudo + izin terpisah) | ✅ |
 | Profil kepegawaian (jabatan, unit) dari SimasHebat | ⏳ |
 | Credential (passkey, autentikator), sesi, aktivitas | ⏳ butuh API credential di `nawasara/keycloak` |
 | Email dinas, VPN, situs OPD, penyimpanan | ⏳ butuh penugasan PIC di registry |
@@ -39,7 +39,11 @@ ASN_PORTAL_KC_CLIENT=asn-portal
 NAWASARA_STAFF_KC_CLIENTS=nawasara-panel,asn-portal
 ```
 
-Belum ada view, jadi belum perlu baris `@source` di `resources/css/app.css`. Tambahkan `@source "../../vendor/nawasara/asn-portal";` bersamaan dengan halaman panel pertama.
+Tambahkan ke `resources/css/app.css`, kalau tidak semua kelas Tailwind halaman panel tidak ter-compile:
+
+```css
+@source "../../vendor/nawasara/asn-portal";
+```
 
 ## Endpoint
 
@@ -77,6 +81,10 @@ Batas per IP.
 
 **Dokumen hukum yang sudah terbit tidak bisa diubah atau dihapus.** Perubahan = versi baru. Dokumennya menjanjikan perubahan diumumkan 14 hari sebelum berlaku, dan apa yang disetujui pengguna pada tanggal tertentu harus tetap bisa dibaca. Versi dengan `effective_at` di masa depan tampil sebagai `upcoming`; versi terbit tanpa tanggal tidak pernah dianggap berlaku. `client_id` Keycloak tidak ikut di direktori publik.
 
+**Versi pengganti dokumen hukum paling cepat berlaku 14 hari setelah terbit.** Dokumennya sendiri menjanjikan pemberitahuan 14 hari; versi pertama boleh langsung berlaku karena belum ada yang perlu diberi tahu. Menerbitkan butuh izin `asn-portal.legal.publish` dan sudo. Tanggal diisi dalam WIB dan disimpan UTC.
+
+**Nama indeks dokumen hukum ditulis eksplisit.** Nama otomatis Laravel untuk tabel ini melebihi batas 64 karakter MySQL, dan migrasinya gagal di tengah dengan tabel yang sudah terbuat.
+
 **Batas laju per `sub`, bukan per IP.** Satu kantor OPD keluar lewat satu IP publik; batas per IP akan membuat satu kantor yang sibuk mengunci stafnya sendiri.
 
 ## Permissions
@@ -89,7 +97,7 @@ Batas per IP.
 
 ## Roadmap
 
-Urutannya mengikuti `persiapan-nawasara-akun-asn.md`: halaman panel konten → credential, sesi, aktivitas → penugasan PIC di registry → email dinas, VPN, situs OPD → penyimpanan. Tiket RAKACA menyusul.
+Urutannya mengikuti `persiapan-nawasara-akun-asn.md`: credential, sesi, aktivitas → penugasan PIC di registry → email dinas, VPN, situs OPD → penyimpanan. Tiket RAKACA menyusul.
 
 ---
 

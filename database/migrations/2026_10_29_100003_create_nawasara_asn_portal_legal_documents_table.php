@@ -36,8 +36,11 @@ return new class extends Migration
             $table->foreignId('published_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
 
-            $table->unique(['type', 'version']);
-            $table->index(['type', 'published_at', 'effective_at']);
+            // Explicit short names: the generated ones exceed MySQL's 64
+            // character identifier limit with this table name, and the
+            // migration fails half-way (the table is already created).
+            $table->unique(['type', 'version'], 'asn_portal_legal_type_version_unique');
+            $table->index(['type', 'published_at', 'effective_at'], 'asn_portal_legal_schedule_index');
         });
     }
 

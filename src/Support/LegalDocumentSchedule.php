@@ -12,6 +12,24 @@ namespace Nawasara\AsnPortal\Support;
 final class LegalDocumentSchedule
 {
     /**
+     * Notice period promised by the documents themselves: "Perubahan
+     * diumumkan ... paling lambat 14 hari sebelum berlaku".
+     */
+    public const NOTICE_DAYS = 14;
+
+    /**
+     * Earliest moment a version may take effect when it is published now.
+     *
+     * The FIRST version of a document has nobody to give notice to, so it may
+     * apply immediately. Every later version replaces terms people already
+     * agreed to, so it must be announced NOTICE_DAYS ahead.
+     */
+    public static function earliestEffectiveAt(bool $hasPublishedVersion, int $now): int
+    {
+        return $hasPublishedVersion ? $now + self::NOTICE_DAYS * 86_400 : $now;
+    }
+
+    /**
      * @template T of array{effective_at: ?int}
      *
      * @param  iterable<T>  $published  versions that have a published_at;

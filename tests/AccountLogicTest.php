@@ -126,6 +126,17 @@ class AccountLogicTest extends TestCase
         $this->assertNull($result['upcoming']);
     }
 
+    public function test_first_version_may_take_effect_immediately(): void
+    {
+        $this->assertSame(self::NOW, LegalDocumentSchedule::earliestEffectiveAt(false, self::NOW));
+    }
+
+    /** A replacement binds people who agreed to the old text: 14 days notice. */
+    public function test_later_versions_need_fourteen_days_notice(): void
+    {
+        $this->assertSame(self::NOW + 14 * 86_400, LegalDocumentSchedule::earliestEffectiveAt(true, self::NOW));
+    }
+
     public function test_version_effective_exactly_now_is_current(): void
     {
         $result = LegalDocumentSchedule::resolve([['id' => 1, 'effective_at' => self::NOW]], self::NOW);

@@ -7,6 +7,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Str;
+use Livewire\Livewire;
+use Symfony\Component\Finder\Finder;
 
 /**
  * Backend for the ASN account portal (asn.ponorogo.go.id).
@@ -25,9 +28,46 @@ class AsnPortalServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
+        $this->loadRoutesFrom(__DIR__.'/../routes/web.php');
+        $this->loadViewsFrom(__DIR__.'/../resources/views', 'nawasara-asn-portal');
 
+        $this->registerLivewire();
         $this->registerRateLimiters();
         $this->registerApiRoutes();
+    }
+
+    /**
+     * Auto-discover Livewire components under src/Livewire.
+     *
+     * Alias = nawasara-asn-portal.<kebab-path>, so Livewire/App/Section/Table.php
+     * becomes nawasara-asn-portal.app.section.table.
+     */
+    protected function registerLivewire(): void
+    {
+        $base = __DIR__.'/Livewire';
+
+        if (! is_dir($base)) {
+            return;
+        }
+
+        foreach ((new Finder)->files()->in($base)->name('*.php') as $file) {
+            $relative = Str::of($file->getRelativePathname())
+                ->replace(['/', '\\'], '\\')
+                ->replace('.php', '');
+
+            $class = 'Nawasara\\AsnPortal\\Livewire\\'.$relative;
+
+            if (! class_exists($class)) {
+                continue;
+            }
+
+            $alias = 'nawasara-asn-portal.'.Str::of($relative)
+                ->explode('\\')
+                ->map(fn ($segment) => Str::kebab($segment))
+                ->implode('.');
+
+            Livewire::component($alias, $class);
+        }
     }
 
     /**
