@@ -30,4 +30,38 @@ return [
     // Requests per minute per IP on the public endpoints (guest pages).
     'public_rate_limit_per_minute' => (int) env('ASN_PORTAL_PUBLIC_RATE_PER_MINUTE', 120),
 
+    // MFA reset requests per minute per REAL client IP (X-Portal-Client-IP),
+    // on top of the per-NIP code limits below.
+    'mfa_reset_rate_per_minute' => (int) env('ASN_PORTAL_MFA_RESET_RATE_PER_MINUTE', 10),
+
+    /*
+    | Employee realm. Null = the default KeycloakClient (Vault group
+    | `keycloak`), which is the employee realm in every Nawasara install.
+    */
+    'keycloak' => [
+        'realm' => env('ASN_PORTAL_KC_REALM'),
+        'vault_group' => env('ASN_PORTAL_KC_VAULT_GROUP'),
+    ],
+
+    // One-time codes (MFA reset, WhatsApp verification). See OtpChallenge.
+    'otp' => [
+        'ttl_minutes' => (int) env('ASN_PORTAL_OTP_TTL_MINUTES', 15),
+        'max_sends' => (int) env('ASN_PORTAL_OTP_MAX_SENDS', 3),
+        'send_window_minutes' => (int) env('ASN_PORTAL_OTP_SEND_WINDOW_MINUTES', 10),
+        'max_verify_attempts' => (int) env('ASN_PORTAL_OTP_MAX_VERIFY_ATTEMPTS', 5),
+    ],
+
+    'whatsapp' => [
+        // OFF by default: production has run without WhatsApp verification
+        // since the WAGO number was banned. See WhatsappController.
+        'verification_enabled' => (bool) env('ASN_PORTAL_WA_VERIFICATION', false),
+
+        // Vault group holding the WAGO gateway (fields api_base, api_key).
+        'vault_group' => env('ASN_PORTAL_WA_VAULT_GROUP', 'whatsapp'),
+    ],
+
+    // How far back "Aktivitas" looks. Must not exceed what the Keycloak
+    // realm keeps (events expiration) and what the privacy policy promises.
+    'activity_days' => (int) env('ASN_PORTAL_ACTIVITY_DAYS', 90),
+
 ];

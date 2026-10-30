@@ -16,10 +16,14 @@ Bekerja bersama `nawasara/api` (jalur JWT pegawai dan pembatas rute).
 | Katalog aplikasi, FAQ, dokumen hukum berversi + endpoint publik | ✅ |
 | Data awal dari portal lama (5 aplikasi, 7 bantuan) | ✅ `ContentSeeder` |
 | Halaman panel: Katalog Aplikasi, Bantuan, Dokumen Hukum (terbit dengan sudo + izin terpisah) | ✅ |
-| Profil kepegawaian (jabatan, unit) dari SimasHebat | ⏳ |
-| Credential (passkey, autentikator), sesi, aktivitas | ⏳ butuh API credential di `nawasara/keycloak` |
+| Profil + kepegawaian (bila NIP ada di registry) | ✅ |
+| Ringkasan keamanan, credential (passkey, autentikator, kode cadangan): lihat, ganti nama, hapus | ✅ |
+| Perangkat (sesi): lihat, keluarkan satu, keluar dari semua perangkat lain | ✅ |
+| Aktivitas: event login Keycloak + catatan portal, 90 hari | ✅ |
+| Ubah nomor WhatsApp (verifikasi kode opsional, mati secara bawaan) | ✅ |
+| Reset MFA tanpa login (email, WhatsApp bila email kosong) | ✅ |
+| Email peringatan keamanan | ✅ lewat `nawasara/notification` |
 | Email dinas, VPN, situs OPD, penyimpanan | ⏳ butuh penugasan PIC di registry |
-| Reset MFA tanpa login, ubah nomor WhatsApp | ⏳ dipindah dari portal lama (rencana §4) |
 
 ## Setup
 
@@ -37,7 +41,21 @@ php artisan db:seed --class="Nawasara\AsnPortal\Database\Seeders\ContentSeeder"
 ASN_PORTAL_KC_CLIENT=asn-portal
 # client yang sama WAJIB juga ada di daftar ini, kalau tidak token ditolak lebih awal
 NAWASARA_STAFF_KC_CLIENTS=nawasara-panel,asn-portal
+
+# opsional, bawaannya sudah benar untuk produksi
+ASN_PORTAL_KC_REALM=              # kosong = client Keycloak bawaan (Vault `keycloak`)
+ASN_PORTAL_WA_VERIFICATION=false  # verifikasi nomor WA dengan kode; gateway WAGO masih mati
+ASN_PORTAL_WA_VAULT_GROUP=whatsapp
+ASN_PORTAL_OTP_TTL_MINUTES=15
+ASN_PORTAL_ACTIVITY_DAYS=90
 ```
+
+Prasyarat di luar paket ini:
+
+- Client admin Keycloak (Vault `keycloak`) butuh role `view-users`, `manage-users`, dan `view-events` di realm pegawai: membaca dan menghapus credential, mengeluarkan sesi, membaca event.
+- **Save events** menyala di realm pegawai, dengan masa simpan minimal `ASN_PORTAL_ACTIVITY_DAYS`. Tanpa itu layar Aktivitas hanya berisi catatan portal.
+- Server portal punya **token `nws_` sendiri** dengan scope `asn-portal.mfa.reset` saja dan daftar IP berisi IP server portal. Token ini satu-satunya kredensial portal ke Nawasara selain client OIDC-nya.
+- Required action `webauthn-register-passwordless`, `CONFIGURE_TOTP`, dan `CONFIGURE_RECOVERY_AUTHN_CODES` aktif di realm.
 
 Tambahkan ke `resources/css/app.css`, kalau tidak semua kelas Tailwind halaman panel tidak ter-compile:
 
@@ -58,6 +76,28 @@ Middleware: `api.staff.identity` → `api.client:<ASN_PORTAL_KC_CLIENT>` → bat
 | GET | `/account` | `sub`, `name`, `nip`, `username`, `email`, `email_verified`, `signed_in_at` |
 | POST | `/account/actions/{action}` | `{ action, authorize_params }` |
 | POST | `/account/reauth` | `{ authorize_params: { max_age: 0 } }` |
+| GET | `/account/profile` | nama, email, WhatsApp ter-mask, kepegawaian |
+| GET | `/account/security` | jumlah passkey/autentikator, kode cadangan, saran pemeriksaan, jumlah sesi |
+| GET | `/account/credentials` | passkey, autentikator, kunci keamanan, kode cadangan (tanpa password) |
+| PATCH | `/account/credentials/{id}` | ganti nama |
+| DELETE | `/account/credentials/{id}` | 🔒 hapus; 409 `last_authenticator` untuk autentikator terakhir |
+| GET | `/account/sessions` | perangkat + aplikasi per sesi, sesi ini di atas |
+| DELETE | `/account/sessions/{id}` | keluarkan satu |
+| POST | `/account/sessions/logout-others` | 🔒 keluarkan semua kecuali sesi ini |
+| GET | `/account/activity` | event login + catatan portal, terbaru dulu |
+| POST | `/account/whatsapp` | 🔒 `{number}` → `saved` atau `code_sent` |
+| POST | `/account/whatsapp/verify` | 🔒 `{number, code}` |
+
+🔒 = `api.recent-auth`: login lebih tua dari `ASN_PORTAL_RECENT_AUTH_SECONDS` dijawab 401 `reauth_required`.
+
+### Reset MFA tanpa login (server portal)
+
+Middleware: `api.auth` (token `nws_` server portal) → `scope:asn-portal.mfa.reset` → batas per IP asli. Server portal meneruskan IP pengguna di header `X-Portal-Client-IP`.
+
+| Metode | Path | Isi |
+|---|---|---|
+| POST | `/public/mfa-reset/request` | `{nip}` → `{channel, destination ter-mask, ttl_minutes}`; 404 bila NIP tak terdaftar, 429 bila batas kirim habis |
+| POST | `/public/mfa-reset/verify` | `{nip, code}` → semua autentikator dihapus, diaudit, dan diberitahukan ke email |
 
 ### Publik (tanpa login)
 
@@ -87,6 +127,20 @@ Batas per IP.
 
 **Batas laju per `sub`, bukan per IP.** Satu kantor OPD keluar lewat satu IP publik; batas per IP akan membuat satu kantor yang sibuk mengunci stafnya sendiri.
 
+**Kode sekali pakai: HMAC, batas percobaan, terikat NIP dan IP asli.** Dua kelemahan portal lama sengaja tidak ikut dipindah: verifikasi kodenya tanpa batas percobaan (kode 6 digit yang berlaku 60 menit bisa ditebak habis), dan saat kode salah, kode yang benar ditulis ke log. Di sini kode disimpan sebagai HMAC dengan `APP_KEY`, hangus setelah 5 tebakan salah, dan batas kirimnya dihitung per NIP *dan* IP asli dari `X-Portal-Client-IP`. Memakai `request()->ip()` akan membuat semua orang berbagi satu batas, karena semua permintaan datang dari IP server portal (rencana §4b). Email kodenya dikirim dengan `->sensitive()`, jadi kodenya tidak tersimpan di log notifikasi.
+
+**Autentikator terakhir tidak bisa dihapus.** Verifikasi dua langkah wajib untuk akun ASN, jadi menghapusnya akan mengunci pemilik akun pada masuk berikutnya. Pengguna harus menambah autentikator lain dulu, atau memakai "Ganti perangkat" (`kc_action=CONFIGURE_TOTP`).
+
+**Atribut Keycloak ditulis dengan representasi pengguna utuh.** `KeycloakClient::setUserAttribute()` hanya mengirim `attributes`; dengan declarative user profile Keycloak 26, PUT parsial bisa mengosongkan atau gagal pada field profil lain. `KeycloakDirectory::setAttributes()` mengambil pengguna, menggabungkan atribut, lalu mengirim semuanya, seperti portal lama yang sudah terbukti di produksi.
+
+**`whatsapp_verified_at` hanya ditulis bila nomornya dibuktikan dengan kode.** Portal lama menulisnya setiap kali menyimpan, sehingga nomor yang tidak pernah diverifikasi tampak terverifikasi.
+
+**Verifikasi nomor WhatsApp mati secara bawaan** (`ASN_PORTAL_WA_VERIFICATION=false`), sama dengan produksi sejak nomor WAGO diblokir. Menyalakannya diam-diam saat migrasi akan merusak alur selama gateway belum pulih. Ubah nomor tetap butuh login segar, karena nomor ini dipakai untuk reset MFA.
+
+**Reset MFA hanya bisa dipanggil server portal.** Endpoint ini menulis identitas atas permintaan orang anonim. Penjaganya berlapis: token `nws_` khusus dengan daftar IP, NIP yang di-resolve di dalam Nawasara (endpoint tidak pernah menerima user id), kode yang terikat NIP, audit, dan email pemberitahuan ke pemilik akun. NIP yang tidak terdaftar dijawab 404, sama seperti portal lama; kalau perilaku ini mau diubah, ingat bahwa ASN butuh tahu ke mana kodenya dikirim.
+
+**Peringatan keamanan dikirim ke email akun, dan kegagalannya tidak menggagalkan aksi.** Perubahan sudah terjadi di Keycloak saat email dikirim; membatalkannya karena SMTP bermasalah justru membingungkan.
+
 ## Permissions
 
 | Permission | Untuk |
@@ -97,7 +151,7 @@ Batas per IP.
 
 ## Roadmap
 
-Urutannya mengikuti `persiapan-nawasara-akun-asn.md`: credential, sesi, aktivitas → penugasan PIC di registry → email dinas, VPN, situs OPD → penyimpanan. Tiket RAKACA menyusul.
+Urutannya mengikuti `persiapan-nawasara-akun-asn.md`: penugasan PIC di registry → email dinas, VPN, situs OPD → penyimpanan. Tiket RAKACA menyusul.
 
 ---
 

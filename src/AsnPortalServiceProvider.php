@@ -23,6 +23,19 @@ class AsnPortalServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->mergeConfigFrom(__DIR__.'/../config/nawasara-asn-portal.php', 'nawasara-asn-portal');
+
+        $this->app->singleton(Services\KeycloakDirectory::class);
+
+        // Codes are HMAC'd with the app key, so a cache dump alone does not
+        // reveal them.
+        $this->app->bind(Services\OtpChallenge::class, fn ($app) => new Services\OtpChallenge(
+            $app['cache']->store(),
+            (string) $app['config']->get('app.key'),
+            (int) config('nawasara-asn-portal.otp.ttl_minutes', 15),
+            (int) config('nawasara-asn-portal.otp.max_sends', 3),
+            (int) config('nawasara-asn-portal.otp.send_window_minutes', 10),
+            (int) config('nawasara-asn-portal.otp.max_verify_attempts', 5),
+        ));
     }
 
     public function boot(): void
@@ -33,6 +46,7 @@ class AsnPortalServiceProvider extends ServiceProvider
 
         $this->registerLivewire();
         $this->registerRateLimiters();
+        $this->registerApiScopes();
         $this->registerApiRoutes();
     }
 
@@ -92,10 +106,34 @@ class AsnPortalServiceProvider extends ServiceProvider
             ->name('nawasara-asn-portal.account.')
             ->group(__DIR__.'/../routes/account.php');
 
+        // Registered BEFORE the open public group: same prefix, and these
+        // routes need the server token, not just a rate limit.
+        Route::prefix($prefix.'/public/mfa-reset')
+            ->middleware(['api', 'api.auth', 'scope:asn-portal.mfa.reset', 'api.log', 'throttle:nawasara-asn-portal-mfa'])
+            ->name('nawasara-asn-portal.mfa-reset.')
+            ->group(__DIR__.'/../routes/mfa-reset.php');
+
         Route::prefix($prefix.'/public')
             ->middleware(['api', 'throttle:nawasara-asn-portal-public'])
             ->name('nawasara-asn-portal.public.')
             ->group(__DIR__.'/../routes/public.php');
+    }
+
+    /**
+     * Scope for the portal server's own nws_ token. Registered before the
+     * routes, or the scope cannot be assigned to a token at all and the
+     * routes reject everything (reference_nawasara_api_scope).
+     */
+    protected function registerApiScopes(): void
+    {
+        if (! class_exists(\Nawasara\Api\Support\ScopeRegistry::class)) {
+            return;
+        }
+
+        $this->app->make(\Nawasara\Api\Support\ScopeRegistry::class)->register(
+            'asn-portal.mfa.reset',
+            'Reset verifikasi dua langkah ASN tanpa login (kirim + verifikasi kode). Hanya untuk server Akun ASN; jangan digabung dengan scope lain.',
+        );
     }
 
     /**
@@ -111,6 +149,13 @@ class AsnPortalServiceProvider extends ServiceProvider
 
             return Limit::perMinute((int) config('nawasara-asn-portal.rate_limit_per_minute', 60))
                 ->by(is_string($sub) && $sub !== '' ? 'asn-portal:'.$sub : 'asn-portal-ip:'.$request->ip());
+        });
+
+        // Keyed on the REAL requester (forwarded by the portal server), not
+        // the server's own address, which is the same for everybody.
+        RateLimiter::for('nawasara-asn-portal-mfa', function (Request $request) {
+            return Limit::perMinute((int) config('nawasara-asn-portal.mfa_reset_rate_per_minute', 10))
+                ->by('asn-portal-mfa:'.\Nawasara\AsnPortal\Support\ClientIp::from($request));
         });
 
         RateLimiter::for('nawasara-asn-portal-public', function (Request $request) {

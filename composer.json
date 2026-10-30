@@ -40,7 +40,12 @@
         "livewire/livewire": "^3.0",
         "nawasara/api": "*",
         "nawasara/ui": "*",
-        "nawasara/auth-primitives": "*"
+        "nawasara/auth-primitives": "*",
+        "nawasara/keycloak": "*",
+        "nawasara/vault": "*"
+    },
+    "suggest": {
+        "nawasara/notification": "Email for one-time codes and security alerts (Notify, with sensitive())"
     },
     "extra": {
         "laravel": {
