@@ -6,7 +6,7 @@ Portalnya sendiri aplikasi Astro yang terpisah. Paket ini memegang seluruh data 
 
 Bekerja bersama `nawasara/api` (jalur JWT pegawai dan pembatas rute).
 
-## Status v0.1.2
+## Status v0.1.3
 
 | Fitur | Status |
 |---|---|
@@ -61,7 +61,7 @@ Prasyarat di luar paket ini:
 - Client admin Keycloak (Vault `keycloak`) butuh role `view-users`, `manage-users`, dan `view-events` di realm pegawai: membaca dan menghapus credential, mengeluarkan sesi, membaca event.
 - **Save events** menyala di realm pegawai, dengan masa simpan minimal `ASN_PORTAL_ACTIVITY_DAYS`. Tanpa itu layar Aktivitas hanya berisi catatan portal.
 - Server portal punya **token `nws_` sendiri** dengan scope `asn-portal.mfa.reset` saja dan daftar IP berisi IP server portal. Token ini satu-satunya kredensial portal ke Nawasara selain client OIDC-nya.
-- Kotak email OPD didaftarkan di registry sebagai aset tipe `email` dengan `identifier` = alamat lengkap, lalu PIC-nya diisi ("Kelola PIC"). Situs memakai aset `domain`/`subdomain`/`hosting`/`hosting_account`/`application`. Tanpa penugasan, halaman Email OPD dan Situs kosong.
+- Kotak email ditautkan ke NIP di WHM Ryder (External Authentication, provider `kisara`); itu sumber utama. Kotak bersama yang belum ditautkan bisa didaftarkan di registry sebagai aset `email` dengan PIC-nya. Situs memakai aset `domain`/`subdomain`/`hosting`/`hosting_account`/`application`. Tanpa penugasan, halaman Email OPD dan Situs kosong.
 - Akun VPN dicari lewat `users.keycloak_id`; akun yang dibuat sebelum pemilihan pemilik dari direktori Keycloak dan belum punya pemilik tidak muncul.
 - Required action `webauthn-register-passwordless`, `CONFIGURE_TOTP`, dan `CONFIGURE_RECOVERY_AUTHN_CODES` aktif di realm.
 
@@ -107,7 +107,7 @@ Middleware: `api.staff.identity` → `api.client:<ASN_PORTAL_KC_CLIENT>` → bat
 | POST | `/account/vpn/{id}/config` | 🔒 `{filename, config}`; QR dirender portal dari isi yang sama |
 | POST | `/account/vpn/{id}/renew-request` | tandai minta perpanjang untuk admin |
 | GET | `/account/sites` | situs yang dipegang + uptime, hosting, PHP, jumlah temuan |
-| GET | `/account/storage` | kuota email pribadi, email OPD, dan hosting |
+| GET | `/account/storage` | `personal` (kotak pribadi pertama), `mailboxes` (sisanya), `hosting` |
 
 🔒 = `api.recent-auth`: login lebih tua dari `ASN_PORTAL_RECENT_AUTH_SECONDS` dijawab 401 `reauth_required`.
 
@@ -160,7 +160,9 @@ Batas per IP.
 
 **Reset MFA hanya bisa dipanggil server portal.** Endpoint ini menulis identitas atas permintaan orang anonim. Penjaganya berlapis: token `nws_` khusus dengan daftar IP, NIP yang di-resolve di dalam Nawasara (endpoint tidak pernah menerima user id), kode yang terikat NIP, audit, dan email pemberitahuan ke pemilik akun. NIP yang tidak terdaftar dijawab 404, sama seperti portal lama; kalau perilaku ini mau diubah, ingat bahwa ASN butuh tahu ke mana kodenya dikirim.
 
-**Kotak email OPD dibuka tanpa kata sandi, dan hanya oleh PIC yang tercatat.** Kata sandi kotak bersama yang dibagikan tidak pernah bisa ditarik kembali; orang yang pindah tugas tetap memegangnya. Lewat portal, akses ditentukan penugasan di registry pada saat tombol ditekan, jadi mencabut PIC langsung mengakhiri aksesnya. Karena itu kata sandi kotak OPD tidak bisa diganti dari portal, dan setiap pembukaan tercatat di `nawasara_webmail_sessions` serta terlihat oleh PIC lain di `/access`.
+**Kotak email diambil dari tautan NIP di WHM Ryder, bukan dari email akun.** Tim email menautkan tiap kotak ke identitas Kisara (subject = NIP) lewat External Authentication cPanel; `nawasara/whm` menyalinnya tiap 30 menit ke `nawasara_whm_mailbox_links`. Per 30 Oktober 2026: 907 tautan, 891 NIP, 890 kotak. Email akun Keycloak tidak dipakai karena bagi banyak ASN itu Gmail pribadi; mencocokkannya akan menyerahkan kotak ke orang yang salah. Penugasan PIC aset `email` di registry ditambahkan di atasnya, untuk kotak bersama yang belum ditautkan.
+
+**Tertaut ke satu NIP = pribadi, ke beberapa NIP = bersama.** Hanya kotak pribadi yang kata sandinya bisa diganti dari portal. Kotak bersama dibuka tanpa kata sandi: kata sandi yang dibagikan tidak pernah bisa ditarik kembali, sedangkan tautan bisa dicabut, dan akses berakhir paling lama 30 menit setelahnya. Setiap pembukaan tercatat di `nawasara_webmail_sessions` dan terlihat oleh pemegang lain di `/access`. Nama pemegang diambil dari `preferred_username` cPanel (`NIP - Nama`) dengan NIP-nya dibuang.
 
 **Alamat dari URL tidak pernah dipakai langsung.** Setiap aksi email mencari alamatnya di antara kotak milik pemanggil (`MailboxDirectory::find`); alamat lain dijawab 404, bukan 403, supaya keberadaan kotak orang lain tidak bisa ditebak.
 

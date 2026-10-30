@@ -9,6 +9,7 @@ use Nawasara\AsnPortal\Services\KeycloakDirectory;
 use Nawasara\AsnPortal\Services\MailboxDirectory;
 use Nawasara\AsnPortal\Services\PortalAudit;
 use Nawasara\AsnPortal\Services\SecurityNotifier;
+use Nawasara\AsnPortal\Support\AccountIdentity;
 use Nawasara\AsnPortal\Support\ClientIp;
 use Nawasara\AsnPortal\Support\ForwardingPolicy;
 
@@ -31,7 +32,7 @@ class MailboxController extends Controller
     /** GET /account/mailboxes */
     public function index(Request $request): JsonResponse
     {
-        $list = $this->mailboxes->forUser($this->sub($request), $this->accountEmail($request));
+        $list = $this->mailboxes->forUser($this->sub($request), $this->nip($request));
 
         return response()->json([
             'data' => $list->map(fn (array $m) => $this->present($m))->values(),
@@ -270,7 +271,7 @@ class MailboxController extends Controller
 
     private function resolve(Request $request, string $address): ?array
     {
-        return $this->mailboxes->find($this->sub($request), $this->accountEmail($request), urldecode($address));
+        return $this->mailboxes->find($this->sub($request), $this->nip($request), urldecode($address));
     }
 
     private function present(array $m): array
@@ -321,6 +322,12 @@ class MailboxController extends Controller
         $userModel = config('auth.providers.users.model');
 
         return $userModel::query()->whereIn('keycloak_id', $subs)->pluck('name', 'keycloak_id')->all();
+    }
+
+    /** NIP from the token (the realm's username), the key of mailbox links. */
+    private function nip(Request $request): ?string
+    {
+        return AccountIdentity::fromClaims((array) $request->attributes->get('staff_claims'))['nip'];
     }
 
     private function accountEmail(Request $request): ?string

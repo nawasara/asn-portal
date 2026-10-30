@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Nawasara\AsnPortal\Services\MailboxDirectory;
 use Nawasara\AsnPortal\Services\SiteDirectory;
+use Nawasara\AsnPortal\Support\AccountIdentity;
 
 /**
  * GET /account/storage — the "Penyimpanan" page: how full each mailbox and
@@ -21,9 +22,9 @@ class StorageController extends Controller
     public function __invoke(Request $request, MailboxDirectory $mailboxes, SiteDirectory $sites): JsonResponse
     {
         $sub = (string) $request->attributes->get('staff_sub');
-        $email = $request->attributes->get('staff_claims')['email'] ?? null;
+        $nip = AccountIdentity::fromClaims((array) $request->attributes->get('staff_claims'))['nip'];
 
-        $mail = $mailboxes->forUser($sub, is_string($email) ? $email : null)
+        $mail = $mailboxes->forUser($sub, $nip)
             ->map(fn (array $m) => [
                 'address' => $m['address'],
                 'kind' => $m['kind'],
@@ -41,9 +42,13 @@ class StorageController extends Controller
                 'used_percent' => self::percent($s['hosting']['disk_used_mb'], $s['hosting']['disk_limit_mb']),
             ]);
 
+        // One NIP can hold several personal mailboxes (Ryder links show up to
+        // six). The first is the headline; the rest are listed, not dropped.
+        $personal = $mail->firstWhere('kind', 'personal');
+
         return response()->json(['data' => [
-            'personal' => $mail->firstWhere('kind', 'personal'),
-            'agency_mailboxes' => $mail->where('kind', 'agency')->values(),
+            'personal' => $personal,
+            'mailboxes' => $mail->reject(fn (array $m) => $m === $personal)->values(),
             'hosting' => $hosting->values(),
         ]]);
     }

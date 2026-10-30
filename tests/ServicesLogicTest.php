@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nawasara\AsnPortal\Tests;
 
 use Nawasara\AsnPortal\Http\Api\StorageController;
+use Nawasara\AsnPortal\Services\MailboxDirectory;
 use Nawasara\AsnPortal\Support\ForwardingPolicy;
 use Nawasara\AsnPortal\Support\SiteHost;
 use PHPUnit\Framework\TestCase;
@@ -64,5 +65,13 @@ class ServicesLogicTest extends TestCase
         // Unlimited is not 0%.
         $this->assertNull(StorageController::percent(500.0, 0));
         $this->assertNull(StorageController::percent(500.0, null));
+    }
+
+    public function test_holder_names_never_show_the_nip(): void
+    {
+        $this->assertSame('Raras Widayanti', MailboxDirectory::holderName('197405091998072001 - Raras Widayanti', '197405091998072001'));
+        $this->assertSame('Pegawai', MailboxDirectory::holderName('197405091998072001', '197405091998072001'));
+        $this->assertSame('Pegawai', MailboxDirectory::holderName(null, '197405091998072001'));
+        $this->assertSame('Admin Kominfo', MailboxDirectory::holderName('Admin Kominfo', 'x'));
     }
 }
