@@ -6,7 +6,7 @@ Portalnya sendiri aplikasi Astro yang terpisah. Paket ini memegang seluruh data 
 
 Bekerja bersama `nawasara/api` (jalur JWT pegawai dan pembatas rute).
 
-## Status v0.1.1
+## Status v0.1.2
 
 | Fitur | Status |
 |---|---|
@@ -23,7 +23,12 @@ Bekerja bersama `nawasara/api` (jalur JWT pegawai dan pembatas rute).
 | Ubah nomor WhatsApp (verifikasi kode opsional, mati secara bawaan) | ✅ |
 | Reset MFA tanpa login (email, WhatsApp bila email kosong) | ✅ |
 | Email peringatan keamanan | ✅ lewat `nawasara/notification` |
-| Email dinas, VPN, situs OPD, penyimpanan | ⏳ butuh penugasan PIC di registry |
+| Email dinas: kotak pribadi + kotak OPD (PIC), webmail tanpa kata sandi, riwayat buka, ganti kata sandi pribadi, balasan otomatis, penerusan | ✅ |
+| VPN: akun milik sendiri, unduh `.conf`, ajukan perpanjang | ✅ |
+| Situs OPD: uptime, disk hosting, versi PHP, jumlah temuan keamanan | ✅ |
+| Penyimpanan: kuota email dan hosting | ✅ |
+| Jumlah situs mati per minggu, "kosongkan ruang" email | ⏳ |
+| Tiket RAKACA | ⏳ menyusul |
 
 ## Setup
 
@@ -48,6 +53,7 @@ ASN_PORTAL_WA_VERIFICATION=false  # verifikasi nomor WA dengan kode; gateway WAG
 ASN_PORTAL_WA_VAULT_GROUP=whatsapp
 ASN_PORTAL_OTP_TTL_MINUTES=15
 ASN_PORTAL_ACTIVITY_DAYS=90
+ASN_PORTAL_MAIL_FORWARD_DOMAINS=ponorogo.go.id   # tujuan penerusan email yang diizinkan, pisahkan koma
 ```
 
 Prasyarat di luar paket ini:
@@ -55,6 +61,8 @@ Prasyarat di luar paket ini:
 - Client admin Keycloak (Vault `keycloak`) butuh role `view-users`, `manage-users`, dan `view-events` di realm pegawai: membaca dan menghapus credential, mengeluarkan sesi, membaca event.
 - **Save events** menyala di realm pegawai, dengan masa simpan minimal `ASN_PORTAL_ACTIVITY_DAYS`. Tanpa itu layar Aktivitas hanya berisi catatan portal.
 - Server portal punya **token `nws_` sendiri** dengan scope `asn-portal.mfa.reset` saja dan daftar IP berisi IP server portal. Token ini satu-satunya kredensial portal ke Nawasara selain client OIDC-nya.
+- Kotak email OPD didaftarkan di registry sebagai aset tipe `email` dengan `identifier` = alamat lengkap, lalu PIC-nya diisi ("Kelola PIC"). Situs memakai aset `domain`/`subdomain`/`hosting`/`hosting_account`/`application`. Tanpa penugasan, halaman Email OPD dan Situs kosong.
+- Akun VPN dicari lewat `users.keycloak_id`; akun yang dibuat sebelum pemilihan pemilik dari direktori Keycloak dan belum punya pemilik tidak muncul.
 - Required action `webauthn-register-passwordless`, `CONFIGURE_TOTP`, dan `CONFIGURE_RECOVERY_AUTHN_CODES` aktif di realm.
 
 Tambahkan ke `resources/css/app.css`, kalau tidak semua kelas Tailwind halaman panel tidak ter-compile:
@@ -87,6 +95,19 @@ Middleware: `api.staff.identity` → `api.client:<ASN_PORTAL_KC_CLIENT>` → bat
 | GET | `/account/activity` | event login + catatan portal, terbaru dulu |
 | POST | `/account/whatsapp` | 🔒 `{number}` → `saved` atau `code_sent` |
 | POST | `/account/whatsapp/verify` | 🔒 `{number, code}` |
+| GET | `/account/mailboxes` | kotak pribadi + kotak OPD yang dipegang: kuota, terpakai, PIC lain |
+| POST | `/account/mailboxes/{address}/webmail` | URL masuk webmail sekali pakai |
+| GET | `/account/mailboxes/{address}/access` | kotak OPD saja: siapa membukanya lewat portal, 90 hari |
+| PUT | `/account/mailboxes/{address}/password` | 🔒 kotak pribadi saja, `{password}` minimal 12 karakter |
+| GET/PUT/DELETE | `/account/mailboxes/{address}/auto-reply` | `{subject, body, start?, stop?}` |
+| GET | `/account/mailboxes/{address}/forwarders` | daftar alamat tujuan |
+| POST | `/account/mailboxes/{address}/forwarders` | 🔒 `{destination}`; 422 `destination_not_allowed` di luar domain izin |
+| DELETE | `/account/mailboxes/{address}/forwarders` | `{destination}` |
+| GET | `/account/vpn` | akun VPN milik sendiri, `last_handshake_at`, `renew_requested_at` |
+| POST | `/account/vpn/{id}/config` | 🔒 `{filename, config}`; QR dirender portal dari isi yang sama |
+| POST | `/account/vpn/{id}/renew-request` | tandai minta perpanjang untuk admin |
+| GET | `/account/sites` | situs yang dipegang + uptime, hosting, PHP, jumlah temuan |
+| GET | `/account/storage` | kuota email pribadi, email OPD, dan hosting |
 
 🔒 = `api.recent-auth`: login lebih tua dari `ASN_PORTAL_RECENT_AUTH_SECONDS` dijawab 401 `reauth_required`.
 
@@ -139,6 +160,16 @@ Batas per IP.
 
 **Reset MFA hanya bisa dipanggil server portal.** Endpoint ini menulis identitas atas permintaan orang anonim. Penjaganya berlapis: token `nws_` khusus dengan daftar IP, NIP yang di-resolve di dalam Nawasara (endpoint tidak pernah menerima user id), kode yang terikat NIP, audit, dan email pemberitahuan ke pemilik akun. NIP yang tidak terdaftar dijawab 404, sama seperti portal lama; kalau perilaku ini mau diubah, ingat bahwa ASN butuh tahu ke mana kodenya dikirim.
 
+**Kotak email OPD dibuka tanpa kata sandi, dan hanya oleh PIC yang tercatat.** Kata sandi kotak bersama yang dibagikan tidak pernah bisa ditarik kembali; orang yang pindah tugas tetap memegangnya. Lewat portal, akses ditentukan penugasan di registry pada saat tombol ditekan, jadi mencabut PIC langsung mengakhiri aksesnya. Karena itu kata sandi kotak OPD tidak bisa diganti dari portal, dan setiap pembukaan tercatat di `nawasara_webmail_sessions` serta terlihat oleh PIC lain di `/access`.
+
+**Alamat dari URL tidak pernah dipakai langsung.** Setiap aksi email mencari alamatnya di antara kotak milik pemanggil (`MailboxDirectory::find`); alamat lain dijawab 404, bukan 403, supaya keberadaan kotak orang lain tidak bisa ditebak.
+
+**Penerusan hanya ke domain `ponorogo.go.id`.** Penerusan ke Gmail pribadi tidak terlihat PIC lain dan terus menyalin surat dinas setelah pemiliknya pindah tugas, yaitu persis akses yang ingin diakhiri desain tanpa kata sandi tadi. Subdomain diterima; akhiran palsu (`evilponorogo.go.id`) tidak.
+
+**Konfigurasi VPN hanya dengan login segar, diaudit, dan diberitahukan.** Isinya kunci privat. Nawasara tidak membuat gambar QR terpisah: portal merender QR dari teks yang sama, supaya kuncinya hanya keluar sekali per unduhan. Akun yang kedaluwarsa dijawab 409; perpanjangan tetap diputuskan admin (`renew_requested_at` tampil di halaman VPN panel), karena kebijakan otomatisnya belum diputuskan.
+
+**Situs dicocokkan lewat host yang dinormalkan, bukan tabel penghubung.** Uptime (Kuma), WHM, dan secscan tidak saling merujuk. `SiteHost` menyamakan `https://www.x.ponorogo.go.id/login` dan `x.ponorogo.go.id`; IP dan nilai yang bukan host tidak pernah dicocokkan. Temuan keamanan hanya dikirim sebagai jumlah: buktinya (kata kunci judi, isi halaman, nama database) tetap di panel.
+
 **Peringatan keamanan dikirim ke email akun, dan kegagalannya tidak menggagalkan aksi.** Perubahan sudah terjadi di Keycloak saat email dikirim; membatalkannya karena SMTP bermasalah justru membingungkan.
 
 ## Permissions
@@ -151,7 +182,9 @@ Batas per IP.
 
 ## Roadmap
 
-Urutannya mengikuti `persiapan-nawasara-akun-asn.md`: penugasan PIC di registry → email dinas, VPN, situs OPD → penyimpanan. Tiket RAKACA menyusul.
+- Jumlah situs mati per minggu: butuh riwayat heartbeat Kuma, belum disimpan.
+- "Kosongkan ruang" email (lampiran besar, sampah): butuh akses isi kotak lewat doveadm.
+- Tiket RAKACA: platform terpisah, menyusul.
 
 ---
 

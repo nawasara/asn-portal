@@ -60,6 +60,12 @@ return [
         'vault_group' => env('ASN_PORTAL_WA_VAULT_GROUP', 'whatsapp'),
     ],
 
+    'mail' => [
+        // Forwarders from an official mailbox may only point at these
+        // domains (and their subdomains). See ForwardingPolicy for why.
+        'forward_allowed_domains' => array_filter(array_map('trim', explode(',', env('ASN_PORTAL_MAIL_FORWARD_DOMAINS', 'ponorogo.go.id')))),
+    ],
+
     // How far back "Aktivitas" looks. Must not exceed what the Keycloak
     // realm keeps (events expiration) and what the privacy policy promises.
     'activity_days' => (int) env('ASN_PORTAL_ACTIVITY_DAYS', 90),

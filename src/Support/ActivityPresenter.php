@@ -30,6 +30,14 @@ final class ActivityPresenter
         'credential_renamed' => ['Nama cara masuk diubah', 'change'],
         'session_revoked' => ['Perangkat dikeluarkan', 'change'],
         'other_sessions_revoked' => ['Keluar dari semua perangkat lain', 'change'],
+        'webmail_opened' => ['Membuka webmail', 'sign_in'],
+        'mailbox_password_changed' => ['Kata sandi email dinas diganti', 'change'],
+        'mailbox_auto_reply_set' => ['Balasan otomatis email diatur', 'change'],
+        'mailbox_auto_reply_cleared' => ['Balasan otomatis email dimatikan', 'change'],
+        'mailbox_forwarder_added' => ['Penerusan email ditambahkan', 'change'],
+        'mailbox_forwarder_removed' => ['Penerusan email dihapus', 'change'],
+        'vpn_config_downloaded' => ['Konfigurasi VPN diunduh', 'change'],
+        'vpn_renew_requested' => ['Perpanjangan VPN diajukan', 'change'],
     ];
 
     /**

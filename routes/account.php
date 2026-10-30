@@ -2,6 +2,10 @@
 
 use Illuminate\Support\Facades\Route;
 use Nawasara\AsnPortal\Http\Api\AccountController;
+use Nawasara\AsnPortal\Http\Api\MailboxController;
+use Nawasara\AsnPortal\Http\Api\SiteController;
+use Nawasara\AsnPortal\Http\Api\StorageController;
+use Nawasara\AsnPortal\Http\Api\VpnController;
 use Nawasara\AsnPortal\Http\Api\SecurityController;
 use Nawasara\AsnPortal\Http\Api\WhatsappController;
 use Nawasara\AsnPortal\Support\AccountActions;
@@ -49,3 +53,28 @@ Route::delete('/sessions/{id}', [SecurityController::class, 'revokeSession'])
 
 Route::post('/whatsapp', [WhatsappController::class, 'request'])->middleware($recentAuth)->name('whatsapp.request');
 Route::post('/whatsapp/verify', [WhatsappController::class, 'verify'])->middleware($recentAuth)->name('whatsapp.verify');
+
+// Official email. {address} is matched against the caller's own mailboxes
+// in MailboxController; the pattern only keeps the path well-formed.
+Route::prefix('mailboxes')->name('mailboxes.')->controller(MailboxController::class)->group(function () use ($recentAuth) {
+    $address = '[A-Za-z0-9._%+@-]{3,190}';
+
+    Route::get('/', 'index')->name('index');
+    Route::post('/{address}/webmail', 'webmail')->where('address', $address)->name('webmail');
+    Route::get('/{address}/access', 'access')->where('address', $address)->name('access');
+    Route::put('/{address}/password', 'password')->where('address', $address)->middleware($recentAuth)->name('password');
+    Route::get('/{address}/auto-reply', 'showAutoReply')->where('address', $address)->name('auto-reply.show');
+    Route::put('/{address}/auto-reply', 'setAutoReply')->where('address', $address)->name('auto-reply.set');
+    Route::delete('/{address}/auto-reply', 'clearAutoReply')->where('address', $address)->name('auto-reply.clear');
+    Route::get('/{address}/forwarders', 'forwarders')->where('address', $address)->name('forwarders.index');
+    Route::post('/{address}/forwarders', 'addForwarder')->where('address', $address)->middleware($recentAuth)->name('forwarders.add');
+    Route::delete('/{address}/forwarders', 'removeForwarder')->where('address', $address)->name('forwarders.remove');
+});
+
+// VPN: the .conf carries the private key, so it needs a fresh login.
+Route::get('/vpn', [VpnController::class, 'index'])->name('vpn.index');
+Route::post('/vpn/{id}/config', [VpnController::class, 'config'])->whereNumber('id')->middleware($recentAuth)->name('vpn.config');
+Route::post('/vpn/{id}/renew-request', [VpnController::class, 'requestRenewal'])->whereNumber('id')->name('vpn.renew-request');
+
+Route::get('/sites', SiteController::class)->name('sites');
+Route::get('/storage', StorageController::class)->name('storage');
