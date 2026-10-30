@@ -62,7 +62,7 @@ class SecurityController extends Controller
         $hasRecovery = ! empty($user['email']) || KeycloakDirectory::attribute($user, KeycloakDirectory::ATTR_WHATSAPP) !== null;
 
         return response()->json([
-            'data' => CredentialSummary::summarize($this->directory->credentials($sub), $hasRecovery)
+            'data' => CredentialSummary::summarize($this->directory->credentials($sub), $hasRecovery, (bool) config('nawasara-asn-portal.keycloak.backup_codes', false))
                 + ['sessions' => count($this->directory->sessions($sub))],
         ]);
     }

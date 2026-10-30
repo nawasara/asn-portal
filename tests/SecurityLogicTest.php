@@ -196,4 +196,15 @@ class SecurityLogicTest extends TestCase
 
         $this->assertNotNull($otp->issue('mfa', 'nip', '203.0.113.5'));
     }
+
+    public function test_backup_codes_off_hides_action_and_suggestion(): void
+    {
+        $off = CredentialSummary::summarize([['id' => 'pw', 'type' => 'password']], hasRecoveryContact: true, backupCodesSupported: false);
+        $this->assertNotContains('create_backup_codes', $off['suggestions']);
+        $this->assertFalse($off['backup_codes_supported']);
+
+        $this->assertFalse(\Nawasara\AsnPortal\Support\AccountActions::supports('backup-codes', false));
+        $this->assertTrue(\Nawasara\AsnPortal\Support\AccountActions::supports('totp', false));
+        $this->assertTrue(\Nawasara\AsnPortal\Support\AccountActions::supports('backup-codes'));
+    }
 }

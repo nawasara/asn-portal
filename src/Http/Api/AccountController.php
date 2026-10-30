@@ -32,7 +32,7 @@ class AccountController extends Controller
      */
     public function startAction(Request $request, string $action): JsonResponse
     {
-        if (! AccountActions::supports($action)) {
+        if (! AccountActions::supports($action, (bool) config('nawasara-asn-portal.keycloak.backup_codes', false))) {
             return response()->json([
                 'error' => ['code' => 'unknown_action', 'message' => 'Aksi tidak dikenal.'],
             ], 404);

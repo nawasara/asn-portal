@@ -28,8 +28,12 @@ final class AccountActions
         'backup-codes' => 'CONFIGURE_RECOVERY_AUTHN_CODES',
     ];
 
-    public static function supports(string $action): bool
+    public static function supports(string $action, bool $backupCodes = true): bool
     {
+        if ($action === 'backup-codes' && ! $backupCodes) {
+            return false;
+        }
+
         return array_key_exists($action, self::ACTIONS);
     }
 

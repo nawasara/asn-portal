@@ -6,7 +6,7 @@ Portalnya sendiri aplikasi Astro yang terpisah. Paket ini memegang seluruh data 
 
 Bekerja bersama `nawasara/api` (jalur JWT pegawai dan pembatas rute).
 
-## Status v0.1.3
+## Status v0.1.4
 
 | Fitur | Status |
 |---|---|
@@ -54,6 +54,7 @@ ASN_PORTAL_WA_VAULT_GROUP=whatsapp
 ASN_PORTAL_OTP_TTL_MINUTES=15
 ASN_PORTAL_ACTIVITY_DAYS=90
 ASN_PORTAL_MAIL_FORWARD_DOMAINS=ponorogo.go.id   # tujuan penerusan email yang diizinkan, pisahkan koma
+ASN_PORTAL_BACKUP_CODES=false   # kode cadangan; nyalakan HANYA setelah alur login realm menerimanya (lihat di bawah)
 ```
 
 Prasyarat di luar paket ini:
@@ -171,6 +172,8 @@ Batas per IP.
 **Konfigurasi VPN hanya dengan login segar, diaudit, dan diberitahukan.** Isinya kunci privat. Nawasara tidak membuat gambar QR terpisah: portal merender QR dari teks yang sama, supaya kuncinya hanya keluar sekali per unduhan. Akun yang kedaluwarsa dijawab 409; perpanjangan tetap diputuskan admin (`renew_requested_at` tampil di halaman VPN panel), karena kebijakan otomatisnya belum diputuskan.
 
 **Situs dicocokkan lewat host yang dinormalkan, bukan tabel penghubung.** Uptime (Kuma), WHM, dan secscan tidak saling merujuk. `SiteHost` menyamakan `https://www.x.ponorogo.go.id/login` dan `x.ponorogo.go.id`; IP dan nilai yang bukan host tidak pernah dicocokkan. Temuan keamanan hanya dikirim sebagai jumlah: buktinya (kata kunci judi, isi halaman, nama database) tetap di panel.
+
+**Kode cadangan mati sampai realm bisa memakainya** (`ASN_PORTAL_BACKUP_CODES=false`). Per 30 Oktober 2026 required action `CONFIGURE_RECOVERY_AUTHN_CODES` belum terdaftar di realm `asn-productions`, dan alur login `Simashebat` mewajibkan OTP Form tanpa langkah untuk kode cadangan. Kode yang bisa dibuat tetapi tidak pernah diterima saat masuk lebih berbahaya daripada tidak ada: orang mengandalkannya saat ponsel hilang. Menyalakannya butuh dua perubahan di Keycloak lebih dulu: daftarkan required action-nya, dan jadikan OTP Form serta Recovery Authentication Code Form pilihan (ALTERNATIVE) di sub-alur OTP. Uji di Keycloak dev, termasuk tampilan tema `asn-v2`.
 
 **Peringatan keamanan dikirim ke email akun, dan kegagalannya tidak menggagalkan aksi.** Perubahan sudah terjadi di Keycloak saat email dikirim; membatalkannya karena SMTP bermasalah justru membingungkan.
 

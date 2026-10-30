@@ -64,7 +64,7 @@ final class CredentialSummary
      * @param  list<array<string, mixed>>  $credentials
      * @return array{passkeys: int, authenticators: int, backup_codes: bool, has_password: bool, suggestions: list<string>}
      */
-    public static function summarize(array $credentials, bool $hasRecoveryContact): array
+    public static function summarize(array $credentials, bool $hasRecoveryContact, bool $backupCodesSupported = true): array
     {
         $count = fn (string $type) => count(array_filter($credentials, fn ($c) => ($c['type'] ?? null) === $type));
 
@@ -73,6 +73,7 @@ final class CredentialSummary
             'authenticators' => $count(self::TYPE_OTP),
             'backup_codes' => $count(self::TYPE_BACKUP_CODES) > 0,
             'has_password' => $count(self::TYPE_PASSWORD) > 0,
+            'backup_codes_supported' => $backupCodesSupported,
             'suggestions' => [],
         ];
 
@@ -84,7 +85,7 @@ final class CredentialSummary
             $summary['suggestions'][] = 'add_authenticator';
         }
 
-        if (! $summary['backup_codes']) {
+        if ($backupCodesSupported && ! $summary['backup_codes']) {
             $summary['suggestions'][] = 'create_backup_codes';
         }
 

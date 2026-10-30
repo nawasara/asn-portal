@@ -41,6 +41,14 @@ return [
     'keycloak' => [
         'realm' => env('ASN_PORTAL_KC_REALM'),
         'vault_group' => env('ASN_PORTAL_KC_VAULT_GROUP'),
+
+        // Backup codes (CONFIGURE_RECOVERY_AUTHN_CODES). OFF until the realm
+        // can USE them: as of 30 Oct 2026 the required action is not
+        // registered in asn-productions, and the Simashebat browser flow has
+        // no step that accepts a backup code (OTP Form is REQUIRED). Codes
+        // that are never accepted at sign-in are worse than none: people
+        // would count on them when their phone is lost.
+        'backup_codes' => (bool) env('ASN_PORTAL_BACKUP_CODES', false),
     ],
 
     // One-time codes (MFA reset, WhatsApp verification). See OtpChallenge.
