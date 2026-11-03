@@ -7,8 +7,12 @@ use RuntimeException;
 
 /**
  * Email for the account portal: one-time codes, and "something changed on
- * your account" alerts, through nawasara/notification (`Notify`, SMTP from
- * the Vault group `smtp`).
+ * your account" alerts, through nawasara/notification (`Notify`).
+ *
+ * Sent from the Vault group `smtp-kisara` (kisara@ponorogo.go.id on the
+ * government mail server, the address the old ASN portal already used), not
+ * the panel's own `smtp`: civil servants should get account mail from Kisara.
+ * Until that group is filled in, EmailChannel falls back to `smtp`.
  *
  * Codes are sent synchronously (the user is waiting) and marked
  * ->sensitive() so the code does not stay in the notification log. Alerts
@@ -16,6 +20,8 @@ use RuntimeException;
  */
 class SecurityNotifier
 {
+    public const SMTP_GROUP = 'smtp-kisara';
+
     public function available(): bool
     {
         return class_exists(\Nawasara\Notification\Facades\Notify::class);
@@ -41,7 +47,7 @@ class SecurityNotifier
                 ->channel('email')
                 ->subject("Kode {$purposeLabel} Akun Kisara")
                 ->body($body)
-                ->context(['source' => 'asn-portal', 'purpose' => $purposeLabel])
+                ->context(['source' => 'asn-portal', 'purpose' => $purposeLabel, 'smtp_group' => self::SMTP_GROUP])
                 ->sensitive()
                 ->sync()
                 ->send();
@@ -69,7 +75,7 @@ class SecurityNotifier
                 ->channel('email')
                 ->subject($subject)
                 ->body(view('nawasara-asn-portal::emails.alert', ['subject' => $subject, 'lines' => $lines])->render())
-                ->context(['source' => 'asn-portal'])
+                ->context(['source' => 'asn-portal', 'smtp_group' => self::SMTP_GROUP])
                 ->send();
         } catch (\Throwable $e) {
             Log::warning('asn-portal: alert email failed', ['reason' => $e->getMessage()]);

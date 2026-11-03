@@ -175,6 +175,8 @@ Batas per IP.
 
 **Kode cadangan mati sampai realm bisa memakainya** (`ASN_PORTAL_BACKUP_CODES=false`). Per 30 Oktober 2026 required action `CONFIGURE_RECOVERY_AUTHN_CODES` belum terdaftar di realm `asn-productions`, dan alur login `Simashebat` mewajibkan OTP Form tanpa langkah untuk kode cadangan. Kode yang bisa dibuat tetapi tidak pernah diterima saat masuk lebih berbahaya daripada tidak ada: orang mengandalkannya saat ponsel hilang. Menyalakannya butuh dua perubahan di Keycloak lebih dulu: daftarkan required action-nya, dan jadikan OTP Form serta Recovery Authentication Code Form pilihan (ALTERNATIVE) di sub-alur OTP. Uji di Keycloak dev, termasuk tampilan tema `asn-v2`.
 
+**Email Akun Kisara dikirim dari Vault grup `smtp-kisara`, bukan `smtp`.** Isinya `kisara@ponorogo.go.id` di server email dinas Ryder, alamat yang sejak awal dipakai portal ASN lama. Grup `smtp` milik panel (per 3 November 2026 masih sebuah Gmail) tidak cocok untuk kode reset yang diterima ASN: alamat pengirim yang asing membuat orang ragu, dan kode yang diragukan tidak dipakai. Selama `smtp-kisara` belum lengkap, email tetap keluar lewat `smtp` (lihat `EmailChannel::resolveGroup` di `nawasara/notification`).
+
 **Peringatan keamanan dikirim ke email akun, dan kegagalannya tidak menggagalkan aksi.** Perubahan sudah terjadi di Keycloak saat email dikirim; membatalkannya karena SMTP bermasalah justru membingungkan.
 
 ## Permissions
