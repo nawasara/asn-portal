@@ -86,7 +86,7 @@ class VpnController extends Controller
 
         $this->audit->record('vpn_config_downloaded', $this->sub($request), ClientIp::from($request), ['vpn' => $account->name]);
         $this->notifier->alert($this->accountEmail($request), 'Konfigurasi VPN diunduh', [
-            'Konfigurasi VPN '.$account->name.' baru saja diunduh dari Akun ASN.',
+            'Konfigurasi VPN '.$account->name.' baru saja diunduh dari Akun Kisara.',
             'Kalau ini bukan Anda, segera hubungi RAKACA agar akun VPN dicabut.',
         ]);
 

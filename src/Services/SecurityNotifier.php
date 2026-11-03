@@ -39,7 +39,7 @@ class SecurityNotifier
         try {
             \Nawasara\Notification\Facades\Notify::to($email)
                 ->channel('email')
-                ->subject("Kode {$purposeLabel} Akun ASN")
+                ->subject("Kode {$purposeLabel} Akun Kisara")
                 ->body($body)
                 ->context(['source' => 'asn-portal', 'purpose' => $purposeLabel])
                 ->sensitive()

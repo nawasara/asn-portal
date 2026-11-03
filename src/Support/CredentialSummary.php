@@ -25,8 +25,10 @@ final class CredentialSummary
 
     /**
      * Allow-listed view of each manageable credential. credentialData and
-     * secretData never leave: the passkey's credential id and authenticator
-     * model are not the portal's business.
+     * secretData never leave. For passkeys, only a provider NAME derived
+     * from the AAGUID goes out ("iCloud Keychain", "Windows Hello"), so the
+     * user can tell a synced passkey from one bound to a single device; the
+     * raw AAGUID and credential id stay behind.
      *
      * @param  list<array<string, mixed>>  $credentials
      * @return list<array<string, mixed>>
@@ -52,10 +54,45 @@ final class CredentialSummary
                 },
                 'label' => is_string($c['userLabel'] ?? null) && $c['userLabel'] !== '' ? $c['userLabel'] : null,
                 'created_at' => self::isoMillis($c['createdDate'] ?? null),
+                ...self::provider($type, $c['credentialData'] ?? null),
             ];
         }
 
         return $out;
+    }
+
+    /**
+     * Known passkey providers by AAGUID → [name, synced]. Synced = the
+     * passkey follows the user's iCloud/Google/password-manager account to
+     * other devices; not synced = it lives on that one device. An AAGUID not
+     * listed (or the all-zero one many authenticators send) gives no name
+     * rather than a guess.
+     */
+    public const PASSKEY_PROVIDERS = [
+        'fbfc3007-154e-4ecc-8c0b-6e020557d7bd' => ['iCloud Keychain', true],
+        'dd4ec289-e01d-41c9-bb89-70fa845d4bf2' => ['iCloud Keychain', true],
+        'ea9b8d66-4d01-1d21-3ce4-b6b48cb575d4' => ['Google Password Manager', true],
+        '53414d53-554e-4700-0000-000000000000' => ['Samsung Pass', true],
+        'bada5566-a7aa-401f-bd96-45619a55120d' => ['1Password', true],
+        'd548826e-79b4-db40-a3d8-11116f7e8349' => ['Bitwarden', true],
+        '531126d6-e717-415c-9320-3d9aa6981239' => ['Dashlane', true],
+        '08987058-cadc-4b81-b6e1-30de50dcbe96' => ['Windows Hello', false],
+        '9ddd1817-af5a-4672-a2b9-3e3dd95000a9' => ['Windows Hello', false],
+        '6028b017-b1d4-4c02-b4b3-afcdafc96bb2' => ['Windows Hello', false],
+        'adce0002-35bc-c60a-648b-0b25f1f05503' => ['Chrome di Mac', false],
+    ];
+
+    /** @return array{provider: ?string, synced: ?bool} */
+    private static function provider(string $type, mixed $credentialData): array
+    {
+        if (! in_array($type, [self::TYPE_PASSKEY, self::TYPE_SECURITY_KEY], true) || ! is_string($credentialData)) {
+            return ['provider' => null, 'synced' => null];
+        }
+
+        $aaguid = strtolower((string) (json_decode($credentialData, true)['aaguid'] ?? ''));
+        [$name, $synced] = self::PASSKEY_PROVIDERS[$aaguid] ?? [null, null];
+
+        return ['provider' => $name, 'synced' => $synced];
     }
 
     /**

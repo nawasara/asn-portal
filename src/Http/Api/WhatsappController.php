@@ -72,7 +72,7 @@ class WhatsappController extends Controller
         }
 
         try {
-            $this->gateway->send($number, "Kode verifikasi nomor WhatsApp Akun ASN: {$code}. Berlaku {$this->otp->ttlMinutes()} menit. Jangan berikan kode ini kepada siapa pun.");
+            $this->gateway->send($number, "Kode verifikasi nomor WhatsApp Akun Kisara: {$code}. Berlaku {$this->otp->ttlMinutes()} menit. Jangan berikan kode ini kepada siapa pun.");
         } catch (\RuntimeException $e) {
             $this->otp->discard(self::PURPOSE, $identity);
 

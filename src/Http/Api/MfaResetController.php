@@ -85,7 +85,7 @@ class MfaResetController extends Controller
                 $channel = 'email';
                 $destination = PhoneNumber::maskEmail($email);
             } else {
-                $this->gateway->send($whatsapp, "Kode reset verifikasi dua langkah Akun ASN: {$code}. Berlaku {$this->otp->ttlMinutes()} menit. Jangan berikan kode ini kepada siapa pun.");
+                $this->gateway->send($whatsapp, "Kode reset verifikasi dua langkah Akun Kisara: {$code}. Berlaku {$this->otp->ttlMinutes()} menit. Jangan berikan kode ini kepada siapa pun.");
                 $channel = 'whatsapp';
                 $destination = PhoneNumber::mask($whatsapp);
             }
@@ -134,7 +134,7 @@ class MfaResetController extends Controller
         $ip = ClientIp::from($request);
         $this->audit->record('mfa_reset', $user['id'], $ip, ['nip' => $nip]);
         $this->notifier->alert($user['email'] ?? null, 'Verifikasi dua langkah akun Anda direset', [
-            'Autentikator akun Anda baru saja dihapus lewat Reset verifikasi dua langkah di Akun ASN.',
+            'Autentikator akun Anda baru saja dihapus lewat Reset verifikasi dua langkah di Akun Kisara.',
             'Saat masuk berikutnya, Anda diminta memasang autentikator baru.',
             'Waktu: '.now('Asia/Jakarta')->translatedFormat('j F Y H:i').' WIB, dari alamat '.$ip.'.',
         ]);

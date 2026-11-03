@@ -78,4 +78,17 @@ return [
     // realm keeps (events expiration) and what the privacy policy promises.
     'activity_days' => (int) env('ASN_PORTAL_ACTIVITY_DAYS', 90),
 
+    // Where a sign-in came from (Perangkat, checkup, failed sign-ins). See
+    // IpPlace for why only another country counts as "unusual".
+    'location' => [
+        // Public IPs are looked up through nawasara/secscan (ipinfo.io). Off
+        // = only the networks below get a name.
+        'enabled' => (bool) env('ASN_PORTAL_IP_LOCATION', true),
+        'home_country' => 'ID',
+        // CIDR => name. Matched before any lookup and never sent outside.
+        'networks' => [
+            '103.109.206.0/24' => 'Jaringan Diskominfo',
+        ],
+    ],
+
 ];

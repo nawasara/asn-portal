@@ -5,6 +5,7 @@ namespace Nawasara\AsnPortal\Http\Api;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Nawasara\AsnPortal\Services\IpLocator;
 use Nawasara\AsnPortal\Services\KeycloakDirectory;
 use Nawasara\AsnPortal\Services\PortalAudit;
 use Nawasara\AsnPortal\Services\SecurityNotifier;
@@ -120,7 +121,7 @@ class SecurityController extends Controller
         $type = collect(CredentialSummary::present($credentials))->firstWhere('id', $id)['type'] ?? 'credential';
         $this->audit->record('credential_removed', $sub, ClientIp::from($request), ['credential_id' => $id, 'type' => $type]);
         $this->notifier->alert($this->email($sub), 'Cara masuk dihapus dari akun Anda', [
-            'Satu cara masuk ('.$this->typeLabel($type).') baru saja dihapus lewat Akun ASN.',
+            'Satu cara masuk ('.$this->typeLabel($type).') baru saja dihapus lewat Akun Kisara.',
             'Waktu: '.now('Asia/Jakarta')->translatedFormat('j F Y H:i').' WIB.',
         ]);
 
@@ -128,15 +129,28 @@ class SecurityController extends Controller
     }
 
     /** GET /account/sessions */
-    public function sessions(Request $request): JsonResponse
+    public function sessions(Request $request, IpLocator $locator): JsonResponse
     {
+        $sessions = $this->directory->sessions($this->sub($request));
+
         return response()->json([
             'data' => SessionPresenter::present(
-                $this->directory->sessions($this->sub($request)),
+                $sessions,
                 $this->directory->appNames(),
                 $this->sid($request),
+                $this->devices($request),
+                $locator->places(array_column($sessions, 'ipAddress')),
             ),
         ]);
+    }
+
+    /** Browser/OS per session; see KeycloakDirectory::devices(). */
+    protected function devices(Request $request): array
+    {
+        $issuer = $request->attributes->get('staff_claims')['iss'] ?? null;
+        $token = $request->bearerToken();
+
+        return is_string($issuer) && is_string($token) ? $this->directory->devices($issuer, $token) : [];
     }
 
     /** DELETE /account/sessions/{id} */
@@ -174,24 +188,39 @@ class SecurityController extends Controller
 
         $this->audit->record('other_sessions_revoked', $sub, ClientIp::from($request), ['count' => $revoked]);
         $this->notifier->alert($this->email($sub), 'Anda keluar dari perangkat lain', [
-            "{$revoked} perangkat lain dikeluarkan dari akun Anda lewat Akun ASN.",
+            "{$revoked} perangkat lain dikeluarkan dari akun Anda lewat Akun Kisara.",
         ]);
 
         return response()->json(['data' => ['revoked' => $revoked]]);
     }
 
     /** GET /account/activity */
-    public function activity(Request $request): JsonResponse
+    public function activity(Request $request, IpLocator $locator): JsonResponse
     {
         $sub = $this->sub($request);
         $days = (int) config('nawasara-asn-portal.activity_days', 90);
 
+        $items = ActivityPresenter::merge(
+            $this->directory->events($sub, $days),
+            $this->audit->eventsFor($sub, $days),
+            $this->directory->appNames(),
+        );
+
+        // Located for failed sign-ins only: those are what a person checks
+        // ("was that me?"), and the feed holds up to 100 entries that would
+        // otherwise each cost a first-time lookup.
+        $failures = array_filter($items, fn (array $e) => $e['kind'] === 'failure');
+        $places = $locator->places(array_column($failures, 'ip'));
+
+        foreach ($items as &$item) {
+            $place = $item['kind'] === 'failure' && $item['ip'] !== null ? ($places[$item['ip']] ?? null) : null;
+            $item['location'] = $place['label'] ?? null;
+            $item['unusual_location'] = $place['unusual'] ?? false;
+        }
+        unset($item);
+
         return response()->json([
-            'data' => ActivityPresenter::merge(
-                $this->directory->events($sub, $days),
-                $this->audit->eventsFor($sub, $days),
-                $this->directory->appNames(),
-            ),
+            'data' => $items,
             'meta' => ['days' => $days],
         ]);
     }
@@ -227,6 +256,7 @@ class SecurityController extends Controller
             'position_type' => $row->jenis_jabatan ?? null,
             'employment_type' => $row->jenis_kepegawaian ?? null,
             'unit' => is_string($unit) ? $unit : null,
+            'synced_at' => isset($row->simas_synced_at) ? \Illuminate\Support\Carbon::parse($row->simas_synced_at, 'UTC')->toIso8601ZuluString() : null,
         ];
     }
 

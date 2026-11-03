@@ -132,7 +132,7 @@ class MailboxController extends Controller
 
         $this->audit->record('mailbox_password_changed', $this->sub($request), ClientIp::from($request), ['mailbox' => $mailbox['address']]);
         $this->notifier->alert($this->accountEmail($request), 'Kata sandi email dinas diganti', [
-            'Kata sandi '.$mailbox['address'].' baru saja diganti lewat Akun ASN.',
+            'Kata sandi '.$mailbox['address'].' baru saja diganti lewat Akun Kisara.',
             'Aplikasi email di ponsel atau Outlook perlu diisi kata sandi yang baru.',
         ]);
 

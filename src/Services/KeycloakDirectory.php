@@ -89,6 +89,39 @@ class KeycloakDirectory
         return $this->client()->getUserSessions($sub);
     }
 
+    /**
+     * The caller's devices, from the ACCOUNT API with the caller's own token.
+     *
+     * The admin API's session list has no user agent; Keycloak keeps it only
+     * for the account API, which groups sessions by device (browser, OS).
+     * `$issuer` is the token's verified `iss` (= {base}/realms/{realm}), so
+     * no URL comes from the request. Failure is not an error: the page then
+     * shows the IP address alone, as before.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function devices(string $issuer, string $accessToken): array
+    {
+        try {
+            $response = \Illuminate\Support\Facades\Http::withToken($accessToken)
+                ->acceptJson()
+                ->timeout(8)
+                ->get(rtrim($issuer, '/').'/account/sessions/devices');
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('asn-portal: account device list unreachable', ['error' => $e->getMessage()]);
+
+            return [];
+        }
+
+        if (! $response->successful()) {
+            \Illuminate\Support\Facades\Log::warning('asn-portal: account device list refused', ['status' => $response->status()]);
+
+            return [];
+        }
+
+        return array_values(array_filter((array) $response->json(), 'is_array'));
+    }
+
     public function deleteSession(string $sessionId): bool
     {
         return $this->client()->deleteSession($sessionId);

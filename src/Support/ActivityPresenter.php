@@ -26,7 +26,7 @@ final class ActivityPresenter
     public const PORTAL_EVENTS = [
         'mfa_reset' => ['Verifikasi dua langkah direset', 'change'],
         'whatsapp_changed' => ['Nomor WhatsApp diubah', 'change'],
-        'credential_removed' => ['Cara masuk dihapus dari Akun ASN', 'change'],
+        'credential_removed' => ['Cara masuk dihapus dari Akun Kisara', 'change'],
         'credential_renamed' => ['Nama cara masuk diubah', 'change'],
         'session_revoked' => ['Perangkat dikeluarkan', 'change'],
         'other_sessions_revoked' => ['Keluar dari semua perangkat lain', 'change'],
@@ -62,6 +62,11 @@ final class ActivityPresenter
 
             $items[] = [
                 'at' => intdiv((int) $e['time'], 1000),
+                // Event type, for pages that show one slice (2FA history).
+                // credential_type tells an authenticator from a passkey on
+                // Keycloak 26's generic UPDATE/REMOVE_CREDENTIAL.
+                'code' => $type,
+                'credential_type' => is_string($e['details']['credential_type'] ?? null) ? $e['details']['credential_type'] : null,
                 'label' => $label,
                 'kind' => $kind,
                 'app' => $client !== null ? ($appNames[$client] ?? $client) : null,
@@ -81,9 +86,11 @@ final class ActivityPresenter
 
             $items[] = [
                 'at' => $e['at'],
+                'code' => $e['event'],
+                'credential_type' => null,
                 'label' => $label,
                 'kind' => $kind,
-                'app' => 'Akun ASN',
+                'app' => 'Akun Kisara',
                 'ip' => $e['ip'],
                 'detail' => null,
             ];

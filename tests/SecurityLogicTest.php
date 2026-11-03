@@ -9,6 +9,7 @@ use Illuminate\Cache\Repository;
 use Nawasara\AsnPortal\Services\OtpChallenge;
 use Nawasara\AsnPortal\Support\ActivityPresenter;
 use Nawasara\AsnPortal\Support\CredentialSummary;
+use Nawasara\AsnPortal\Support\IpPlace;
 use Nawasara\AsnPortal\Support\PhoneNumber;
 use Nawasara\AsnPortal\Support\SessionPresenter;
 use PHPUnit\Framework\TestCase;
@@ -20,7 +21,7 @@ class SecurityLogicTest extends TestCase
         ['id' => 'otp-1', 'type' => 'otp', 'userLabel' => 'Ponsel Samsung', 'createdDate' => 1_760_000_000_000,
             'credentialData' => '{"subType":"totp"}'],
         ['id' => 'pk-1', 'type' => 'webauthn-passwordless', 'userLabel' => 'iPhone',
-            'credentialData' => '{"credentialId":"abc","aaguid":"x"}'],
+            'credentialData' => '{"credentialId":"abc","aaguid":"FBFC3007-154E-4ECC-8C0B-6E020557D7BD"}'],
     ];
 
     // ---- CredentialSummary -------------------------------------------------
@@ -31,7 +32,10 @@ class SecurityLogicTest extends TestCase
         $out = CredentialSummary::present(self::CREDENTIALS);
 
         $this->assertSame(['otp-1', 'pk-1'], array_column($out, 'id'));
-        $this->assertSame(['id', 'type', 'label', 'created_at'], array_keys($out[0]));
+        $this->assertSame(['id', 'type', 'label', 'created_at', 'provider', 'synced'], array_keys($out[0]));
+        $this->assertNull($out[0]['provider'], 'authenticator apps have no provider');
+        $this->assertSame(['iCloud Keychain', true], [$out[1]['provider'], $out[1]['synced']], 'AAGUID matched case-insensitively');
+        $this->assertStringNotContainsString('abc', json_encode($out), 'credential id never leaves');
         $this->assertSame('totp', $out[0]['type']);
         $this->assertSame('passkey', $out[1]['type']);
         $this->assertSame('2025-10-09T08:53:20Z', $out[0]['created_at']);
@@ -89,6 +93,59 @@ class SecurityLogicTest extends TestCase
         $this->assertSame('Satu Data Ponorogo', $out[1]['apps'][0]['name']);
         $this->assertTrue(SessionPresenter::owns($sessions, 's-old'));
         $this->assertFalse(SessionPresenter::owns($sessions, 's-other-user'));
+        $this->assertNull($out[0]['browser'], 'no device list: fields stay empty, not guessed');
+    }
+
+    /** Browser and OS come from the account API's device list, matched by session id. */
+    public function test_sessions_take_browser_and_os_from_devices(): void
+    {
+        $sessions = [
+            ['id' => 's-pc', 'ipAddress' => '10.0.0.1', 'start' => 1_000, 'lastAccess' => 2_000, 'clients' => []],
+            ['id' => 's-hp', 'ipAddress' => '10.0.0.2', 'start' => 1_000, 'lastAccess' => 1_000, 'clients' => []],
+        ];
+        $devices = [
+            ['os' => 'Windows', 'osVersion' => '10', 'device' => 'Other', 'mobile' => false,
+                'sessions' => [['id' => 's-pc', 'browser' => 'Chrome/130.0.0']]],
+            ['os' => 'Android', 'osVersion' => 'Unknown', 'device' => 'Samsung SM-A515F', 'mobile' => true,
+                'sessions' => [['id' => 's-hp', 'browser' => 'Samsung Internet/26.0']]],
+        ];
+
+        $out = SessionPresenter::present($sessions, [], null, $devices);
+
+        $this->assertSame(['Chrome', 'Windows 10', null, false], [$out[0]['browser'], $out[0]['os'], $out[0]['device'], $out[0]['mobile']]);
+        $this->assertSame(['Samsung Internet', 'Android', 'Samsung SM-A515F', true], [$out[1]['browser'], $out[1]['os'], $out[1]['device'], $out[1]['mobile']]);
+    }
+
+    // ---- IpPlace -----------------------------------------------------------
+
+    /** Office range and private addresses are named locally, never looked up. */
+    public function test_known_networks_named_without_lookup(): void
+    {
+        $networks = ['103.109.206.0/24' => 'Jaringan Diskominfo'];
+
+        $this->assertSame('Jaringan Diskominfo', IpPlace::known('103.109.206.21', $networks)['label']);
+        $this->assertSame('Jaringan internal Pemkab', IpPlace::known('10.1.5.40', $networks)['label']);
+        $this->assertNull(IpPlace::known('103.109.207.1', $networks), 'neighbouring /24 is not the office');
+        $this->assertNull(IpPlace::known('114.10.22.5', $networks));
+    }
+
+    /** City is a hint only; just another country is unusual. */
+    public function test_only_another_country_is_unusual(): void
+    {
+        $jakarta = IpPlace::fromGeo(['country' => 'Indonesia', 'country_code' => 'ID', 'city' => 'Jakarta', 'org' => 'AS7713 PT Telekomunikasi Indonesia']);
+        $abroad = IpPlace::fromGeo(['country' => 'Singapura', 'country_code' => 'SG', 'city' => 'Singapore', 'org' => null]);
+
+        $this->assertSame(['sekitar Jakarta', 'PT Telekomunikasi Indonesia', false], [$jakarta['label'], $jakarta['network'], $jakarta['unusual']]);
+        $this->assertSame(['Singapore, Singapura', true], [$abroad['label'], $abroad['unusual']]);
+        $this->assertNull(IpPlace::fromGeo(null), 'lookup failed: no place, not a guess');
+    }
+
+    public function test_sessions_carry_their_place(): void
+    {
+        $sessions = [['id' => 's1', 'ipAddress' => '8.8.8.8', 'start' => 1_000, 'lastAccess' => 1_000, 'clients' => []]];
+        $out = SessionPresenter::present($sessions, [], null, [], ['8.8.8.8' => ['label' => 'Mountain View, US', 'network' => 'Google', 'unusual' => true]]);
+
+        $this->assertSame(['Mountain View, US', 'Google', true], [$out[0]['location'], $out[0]['network'], $out[0]['unusual_location']]);
     }
 
     // ---- ActivityPresenter -------------------------------------------------
