@@ -23,8 +23,11 @@ class Table extends Component
     use WithFileUploads;
     use WithSudo;
 
-    /** Uploaded icons live on the public disk, so the portals can load them directly. */
+    /** Uploaded icons live on the public disk and are served by AppIconController. */
     public const ICON_DIR = 'asn-portal/icons';
+
+    /** One plain file name, nothing that climbs out of the directory. */
+    public const ICON_FILE_PATTERN = '[a-z0-9-]+\.(png|jpe?g|webp)';
 
     // No SVG: an uploaded SVG is served from the panel's own origin and can
     // carry script. Raster only.
@@ -151,7 +154,7 @@ class Table extends Component
                 $data['slug'].'-'.Str::lower(Str::random(8)).'.'.$this->icon->extension(),
                 'public',
             );
-            $data['icon_url'] = self::iconUrl($path);
+            $data['icon_url'] = self::iconUrl(basename($path));
         }
 
         $previous = $this->editingId ? PortalApp::findOrFail($this->editingId)->icon_url : null;
@@ -229,27 +232,40 @@ class Table extends Component
             return null;
         }
 
-        // url() drops a trailing slash, so add it back after.
-        $prefix = rtrim(self::iconUrl(self::ICON_DIR), '/').'/';
-        if (! str_starts_with($url, $prefix)) {
+        // Host and path, not the full URL: the scheme seen behind the proxy
+        // can differ from the one stored, and that must not orphan a file.
+        $host = parse_url($url, PHP_URL_HOST);
+        if ($host !== null && strcasecmp($host, (string) parse_url(url('/'), PHP_URL_HOST)) !== 0) {
             return null;
         }
 
-        $name = substr($url, strlen($prefix));
+        $prefix = '/'.self::iconRoutePrefix().'/';
+        $path = (string) parse_url($url, PHP_URL_PATH);
+        if (! str_starts_with($path, $prefix)) {
+            return null;
+        }
 
-        // One plain file name, nothing that climbs out of the directory.
-        return preg_match('/^[a-z0-9-]+\.(png|jpe?g|webp)$/', $name) === 1
+        $name = substr($path, strlen($prefix));
+
+        return preg_match('/^'.self::ICON_FILE_PATTERN.'$/', $name) === 1
             ? self::ICON_DIR.'/'.$name
             : null;
     }
 
-    /**
-     * Always absolute: the portals load the icon from their own domains, and
-     * the disk URL is relative when the public disk has no `url` configured.
-     */
-    private static function iconUrl(string $path): string
+    /** Route path for icons, next to the other public endpoints. */
+    public static function iconRoutePrefix(): string
     {
-        return url(Storage::disk('public')->url($path));
+        return trim((string) config('nawasara-api.route.prefix', 'api/v1'), '/').'/asn-portal/public/icons';
+    }
+
+    /**
+     * Always absolute: the portals load the icon from their own domains.
+     * Not a /storage URL: in production public/storage is a separate empty
+     * volume, so storage:link never takes and those URLs answer 404.
+     */
+    private static function iconUrl(string $file): string
+    {
+        return url(self::iconRoutePrefix().'/'.$file);
     }
 
     private static function deleteStoredIcon(?string $url): void

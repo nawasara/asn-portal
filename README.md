@@ -129,6 +129,7 @@ Batas per IP.
 | Metode | Path | Isi |
 |---|---|---|
 | GET | `/public/apps` | katalog aplikasi aktif |
+| GET | `/public/icons/{file}` | ikon aplikasi yang diunggah (tanpa throttle, cache setahun) |
 | GET | `/public/help?kind=faq\|sign_in_help` | bantuan, jawaban Markdown |
 | GET | `/public/legal/{privacy\|terms}` | versi berlaku + `upcoming` bila sudah diumumkan; 404 `not_published` bila belum ada |
 
@@ -178,7 +179,9 @@ Batas per IP.
 
 **Email Akun Kisara dikirim dari Vault grup `smtp-kisara`, bukan `smtp`.** Isinya `kisara@ponorogo.go.id` di server email dinas Ryder, alamat yang sejak awal dipakai portal ASN lama. Grup `smtp` milik panel (per 3 November 2026 masih sebuah Gmail) tidak cocok untuk kode reset yang diterima ASN: alamat pengirim yang asing membuat orang ragu, dan kode yang diragukan tidak dipakai. Selama `smtp-kisara` belum lengkap, email tetap keluar lewat `smtp` (lihat `EmailChannel::resolveGroup` di `nawasara/notification`).
 
-**Ikon aplikasi diunggah ke disk `public`, bukan SVG.** Berkasnya disajikan dari domain panel sendiri; SVG dapat memuat skrip, dan membuka berkas itu langsung akan menjalankannya di origin Nawasara. Hanya PNG, JPG, dan WebP, maks 512 KB, 64–1024 piksel per sisi. Nama berkas diberi akhiran acak, sehingga ikon yang diganti mendapat alamat baru: portal lama menyimpan katalog di cache 5 menit, dan alamat yang sama akan membuatnya terus menampilkan gambar lama. `icon_url` selalu absolut karena portal memuatnya dari domain lain. Berkas hanya dihapus bila alamatnya menunjuk ke `asn-portal/icons/` milik panel ini (`Table::storedIconPath`); alamat yang ditempel staf dari tempat lain tidak pernah disentuh.
+**Ikon aplikasi diunggah ke disk `public`, bukan SVG.** Berkasnya disajikan dari domain panel sendiri; SVG dapat memuat skrip, dan membuka berkas itu langsung akan menjalankannya di origin Nawasara. Hanya PNG, JPG, dan WebP, maks 512 KB, 64–1024 piksel per sisi. Nama berkas diberi akhiran acak, sehingga ikon yang diganti mendapat alamat baru: portal lama menyimpan katalog di cache 5 menit, dan alamat yang sama akan membuatnya terus menampilkan gambar lama. `icon_url` selalu absolut karena portal memuatnya dari domain lain. Berkas hanya dihapus bila alamatnya menunjuk ke rute ikon di host panel ini (`Table::storedIconPath`); alamat yang ditempel staf dari tempat lain tidak pernah disentuh.
+
+**Ikon disajikan lewat rute `GET /api/v1/asn-portal/public/icons/{file}`, bukan `/storage`.** Di produksi `public/storage` adalah volume kosong tersendiri, sehingga `storage:link` tidak pernah berhasil dan setiap URL `/storage/...` menjawab 404 (diperiksa 4 November 2026). Rute ini sengaja di luar throttle endpoint publik: satu kantor OPD keluar lewat satu IP, dan tiap pemuatan halaman portal menarik semua ikon sekaligus. Nama berkas tidak pernah berubah isinya, jadi dijawab dengan cache setahun. ⚠️ nginx app memakai blok aset statis `\.(png|jpe?g|webp…)$` yang menelan URL ini sebelum sampai ke PHP; `docker/nginx.conf` di app-dev punya blok `^~` khusus untuk path ini. Mengubah prefiks rute berarti mengubah blok itu juga.
 
 **Peringatan keamanan dikirim ke email akun, dan kegagalannya tidak menggagalkan aksi.** Perubahan sudah terjadi di Keycloak saat email dikirim; membatalkannya karena SMTP bermasalah justru membingungkan.
 

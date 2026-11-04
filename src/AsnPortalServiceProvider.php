@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Livewire\Livewire;
+use Nawasara\AsnPortal\Http\Api\AppIconController;
+use Nawasara\AsnPortal\Livewire\App\Section\Table;
 use Symfony\Component\Finder\Finder;
 
 /**
@@ -91,6 +93,12 @@ class AsnPortalServiceProvider extends ServiceProvider
      */
     protected function registerApiRoutes(): void
     {
+        // Icons sit outside the throttled public group: one OPD office shares
+        // one IP, and every portal page load pulls every icon at once.
+        Route::get(Table::iconRoutePrefix().'/{file}', AppIconController::class)
+            ->where('file', Table::ICON_FILE_PATTERN)
+            ->name('nawasara-asn-portal.icon');
+
         if (! class_exists(\Nawasara\Api\ApiServiceProvider::class)) {
             return;
         }
