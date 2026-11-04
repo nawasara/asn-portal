@@ -52,8 +52,12 @@
                 <tr wire:key="portal-app-{{ $row->id }}">
                     <td class="px-6 py-4">
                         <div class="flex items-center gap-3">
-                            <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-xs font-semibold text-white"
-                                  style="background: {{ $row->color ?? '#475569' }}">{{ $row->abbreviation ?? mb_substr($row->name, 0, 2) }}</span>
+                            @if ($row->icon_url)
+                                <img src="{{ $row->icon_url }}" alt="" class="h-9 w-9 shrink-0 rounded-lg object-cover" loading="lazy" />
+                            @else
+                                <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-xs font-semibold text-white"
+                                      style="background: {{ $row->color ?? '#475569' }}">{{ $row->abbreviation ?? mb_substr($row->name, 0, 2) }}</span>
+                            @endif
                             <div class="min-w-0">
                                 <span class="text-sm text-neutral-800 dark:text-neutral-100">{{ $row->name }}</span>
                                 <p class="mt-0.5 truncate text-xs text-neutral-500 dark:text-neutral-400">{{ $row->url }}</p>
@@ -150,8 +154,37 @@
             </div>
 
             <div>
+                <x-nawasara-ui::form.label value="Ikon" />
+                <div class="mt-2 flex items-start gap-4">
+                    {{-- isPreviewable(): temporaryUrl() throws on anything that is not an image. --}}
+                    @if ($icon && ! $errors->has('icon') && $icon->isPreviewable())
+                        <img src="{{ $icon->temporaryUrl() }}" alt="" class="h-14 w-14 shrink-0 rounded-xl object-cover ring-1 ring-neutral-200 dark:ring-neutral-700" />
+                    @elseif ($icon_url)
+                        <img src="{{ $icon_url }}" alt="" class="h-14 w-14 shrink-0 rounded-xl object-cover ring-1 ring-neutral-200 dark:ring-neutral-700" />
+                    @else
+                        <span class="grid h-14 w-14 shrink-0 place-items-center rounded-xl text-sm font-semibold text-white"
+                              style="background: {{ preg_match('/^#[0-9a-fA-F]{6}$/', (string) $color) ? $color : '#475569' }}">{{ $abbreviation ?: mb_substr($name ?: '?', 0, 2) }}</span>
+                    @endif
+
+                    <div class="min-w-0 flex-1 space-y-2">
+                        {{-- Native: nawasara-ui has no file input component. --}}
+                        <input type="file" wire:model="icon" accept="image/png,image/jpeg,image/webp"
+                            class="block w-full text-xs text-neutral-600 file:mr-3 file:rounded-lg file:border-0 file:bg-emerald-50 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-emerald-700 hover:file:bg-emerald-100 dark:text-neutral-400 dark:file:bg-emerald-900/30 dark:file:text-emerald-400" />
+                        <div wire:loading wire:target="icon" class="text-xs text-neutral-500 dark:text-neutral-400">Mengunggah...</div>
+                        @error('icon') <p class="text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+                        <p class="text-xs text-neutral-500 dark:text-neutral-400">PNG, JPG, atau WebP, maks 512 KB, sebaiknya persegi. Tanpa ikon, portal menampilkan singkatan di atas warna.</p>
+                        @if ($icon || $icon_url)
+                            <x-nawasara-ui::button color="neutral" variant="outline" size="sm" wire:click="removeIcon">
+                                Hapus Ikon
+                            </x-nawasara-ui::button>
+                        @endif
+                    </div>
+                </div>
+            </div>
+
+            <div>
                 <x-nawasara-ui::form.input type="text" label="Alamat Ikon" wire:model="icon_url" placeholder="https://..." />
-                <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Opsional. Tanpa ikon, portal menampilkan singkatan di atas warna.</p>
+                <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Terisi sendiri setelah ikon diunggah dan disimpan. Bisa juga diisi alamat gambar dari tempat lain.</p>
             </div>
         </div>
 

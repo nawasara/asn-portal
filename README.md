@@ -15,6 +15,7 @@ Bekerja bersama `nawasara/api` (jalur JWT pegawai dan pembatas rute).
 | `POST /account/reauth`: parameter paksa masuk ulang | ✅ |
 | Katalog aplikasi, FAQ, dokumen hukum berversi + endpoint publik | ✅ |
 | Data awal dari portal lama (5 aplikasi, 7 bantuan) | ✅ `ContentSeeder` |
+| Unggah ikon aplikasi (PNG/JPG/WebP) dari panel | ✅ |
 | Halaman panel: Katalog Aplikasi, Bantuan, Dokumen Hukum (terbit dengan sudo + izin terpisah) | ✅ |
 | Profil + kepegawaian (bila NIP ada di registry) | ✅ |
 | Ringkasan keamanan, credential (passkey, autentikator, kode cadangan): lihat, ganti nama, hapus | ✅ |
@@ -176,6 +177,8 @@ Batas per IP.
 **Kode cadangan mati sampai realm bisa memakainya** (`ASN_PORTAL_BACKUP_CODES=false`). Per 30 Oktober 2026 required action `CONFIGURE_RECOVERY_AUTHN_CODES` belum terdaftar di realm `asn-productions`, dan alur login `Simashebat` mewajibkan OTP Form tanpa langkah untuk kode cadangan. Kode yang bisa dibuat tetapi tidak pernah diterima saat masuk lebih berbahaya daripada tidak ada: orang mengandalkannya saat ponsel hilang. Menyalakannya butuh dua perubahan di Keycloak lebih dulu: daftarkan required action-nya, dan jadikan OTP Form serta Recovery Authentication Code Form pilihan (ALTERNATIVE) di sub-alur OTP. Uji di Keycloak dev, termasuk tampilan tema `asn-v2`.
 
 **Email Akun Kisara dikirim dari Vault grup `smtp-kisara`, bukan `smtp`.** Isinya `kisara@ponorogo.go.id` di server email dinas Ryder, alamat yang sejak awal dipakai portal ASN lama. Grup `smtp` milik panel (per 3 November 2026 masih sebuah Gmail) tidak cocok untuk kode reset yang diterima ASN: alamat pengirim yang asing membuat orang ragu, dan kode yang diragukan tidak dipakai. Selama `smtp-kisara` belum lengkap, email tetap keluar lewat `smtp` (lihat `EmailChannel::resolveGroup` di `nawasara/notification`).
+
+**Ikon aplikasi diunggah ke disk `public`, bukan SVG.** Berkasnya disajikan dari domain panel sendiri; SVG dapat memuat skrip, dan membuka berkas itu langsung akan menjalankannya di origin Nawasara. Hanya PNG, JPG, dan WebP, maks 512 KB, 64–1024 piksel per sisi. Nama berkas diberi akhiran acak, sehingga ikon yang diganti mendapat alamat baru: portal lama menyimpan katalog di cache 5 menit, dan alamat yang sama akan membuatnya terus menampilkan gambar lama. `icon_url` selalu absolut karena portal memuatnya dari domain lain. Berkas hanya dihapus bila alamatnya menunjuk ke `asn-portal/icons/` milik panel ini (`Table::storedIconPath`); alamat yang ditempel staf dari tempat lain tidak pernah disentuh.
 
 **Peringatan keamanan dikirim ke email akun, dan kegagalannya tidak menggagalkan aksi.** Perubahan sudah terjadi di Keycloak saat email dikirim; membatalkannya karena SMTP bermasalah justru membingungkan.
 
