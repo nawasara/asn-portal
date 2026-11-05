@@ -109,6 +109,7 @@ Middleware: `api.staff.identity` → `api.client:<ASN_PORTAL_KC_CLIENT>` → bat
 | POST | `/account/vpn/{id}/config` | 🔒 `{filename, config}`; QR dirender portal dari isi yang sama |
 | POST | `/account/vpn/{id}/renew-request` | tandai minta perpanjang untuk admin |
 | GET | `/account/sites` | situs yang dipegang + uptime, hosting, PHP, jumlah temuan |
+| GET | `/account/servers` | server/VM Proxmox yang dipegang sebagai PIC + status, CPU, memori, disk, uptime, IP |
 | GET | `/account/storage` | `personal` (kotak pribadi pertama), `mailboxes` (sisanya), `hosting` |
 
 🔒 = `api.recent-auth`: login lebih tua dari `ASN_PORTAL_RECENT_AUTH_SECONDS` dijawab 401 `reauth_required`.
@@ -134,6 +135,8 @@ Batas per IP.
 | GET | `/public/legal/{privacy\|terms}` | versi berlaku + `upcoming` bila sudah diumumkan; 404 `not_published` bila belum ada |
 
 ## Keputusan yang jangan dibatalkan
+
+**`/account/servers` hanya membaca, tanpa tautan console.** Data diambil dari snapshot proxmox (diperbarui beberapa menit sekali), bukan dari API Proxmox saat halaman dibuka. Kolomnya daftar-izin di `ServerDirectory`: tanpa id internal, tanpa kredensial, tanpa console. Membuka console tetap aksi panel yang punya izin dan jejak auditnya sendiri. `disk_percent` sengaja `null` untuk VM QEMU, karena tanpa guest agent Proxmox melaporkan 0, dan 0% akan tampak seperti disk kosong.
 
 **Akun memakai `api.staff.identity`, bukan `api.staff`.** `api.staff` menuntut baris `users` dan menolak sisanya dengan 403. Portal melayani *seluruh* ASN, dan sebagian besar tidak pernah membuka panel Nawasara. Identitas diambil dari `sub` token, tidak pernah dari parameter, dan `Auth::setUser()` sengaja tidak dipanggil supaya endpoint akun tidak mewarisi permission panel.
 

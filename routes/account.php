@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use Nawasara\AsnPortal\Http\Api\AccountController;
 use Nawasara\AsnPortal\Http\Api\MailboxController;
+use Nawasara\AsnPortal\Http\Api\ServerController;
 use Nawasara\AsnPortal\Http\Api\SiteController;
 use Nawasara\AsnPortal\Http\Api\StorageController;
 use Nawasara\AsnPortal\Http\Api\VpnController;
@@ -77,4 +78,6 @@ Route::post('/vpn/{id}/config', [VpnController::class, 'config'])->whereNumber('
 Route::post('/vpn/{id}/renew-request', [VpnController::class, 'requestRenewal'])->whereNumber('id')->name('vpn.renew-request');
 
 Route::get('/sites', SiteController::class)->name('sites');
+// Server/VM yang dipegang (PIC lewat registry, angka dari snapshot proxmox).
+Route::get('/servers', ServerController::class)->name('servers');
 Route::get('/storage', StorageController::class)->name('storage');

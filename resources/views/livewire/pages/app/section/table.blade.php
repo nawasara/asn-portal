@@ -46,7 +46,7 @@
                 description="Jalankan ContentSeeder untuk mengisi aplikasi dari portal lama, atau tambahkan satu per satu." />
         @endif
     @else
-        <x-nawasara-ui::table :headers="['Aplikasi', 'Client Keycloak', 'Kategori', 'Urutan', 'Status', '']" stickyLast>
+        <x-nawasara-ui::table :headers="['Aplikasi', 'Client Keycloak', 'Kategori', 'Urutan', '']" stickyLast>
             <x-slot:table>
             @foreach ($this->rows as $row)
                 <tr wire:key="portal-app-{{ $row->id }}">
@@ -61,6 +61,12 @@
                             <div class="min-w-0">
                                 <span class="text-sm text-neutral-800 dark:text-neutral-100">{{ $row->name }}</span>
                                 <p class="mt-0.5 truncate text-xs text-neutral-500 dark:text-neutral-400">{{ $row->url }}</p>
+                                {{-- Status di bawah nama, bukan kolom sendiri: terlihat tanpa menggulir ke kanan. --}}
+                                <div class="mt-1">
+                                    <x-nawasara-ui::badge :color="$row->is_active ? 'success' : 'neutral'">
+                                        {{ $row->is_active ? 'Aktif' : 'Nonaktif' }}
+                                    </x-nawasara-ui::badge>
+                                </div>
                             </div>
                         </div>
                     </td>
@@ -72,11 +78,6 @@
                     </td>
                     <td class="px-6 py-4 text-sm text-neutral-700 dark:text-neutral-200">
                         {{ $row->sort_order }}
-                    </td>
-                    <td class="px-6 py-4">
-                        <x-nawasara-ui::badge :color="$row->is_active ? 'success' : 'neutral'">
-                            {{ $row->is_active ? 'Aktif' : 'Nonaktif' }}
-                        </x-nawasara-ui::badge>
                     </td>
                     <td class="px-6 py-4 text-right">
                         <x-nawasara-ui::dropdown-menu-action :id="$row->id" :items="[

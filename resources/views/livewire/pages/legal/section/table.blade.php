@@ -47,7 +47,7 @@
                 description="Tulis draf Kebijakan Privasi dan Persyaratan Layanan. Selama belum ada versi yang berlaku, portal tidak menampilkan dokumennya." />
         @endif
     @else
-        <x-nawasara-ui::table :headers="['Dokumen', 'Versi', 'Status', 'Berlaku', 'Diterbitkan', '']" stickyLast>
+        <x-nawasara-ui::table :headers="['Dokumen', 'Versi', 'Berlaku', 'Diterbitkan', '']" stickyLast>
             <x-slot:table>
             @foreach ($this->rows as $row)
                 @php
@@ -63,11 +63,12 @@
                     <td class="px-6 py-4">
                         <span class="text-sm text-neutral-800 dark:text-neutral-100">{{ $row->title }}</span>
                         <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{{ $typeLabels[$row->type] ?? $row->type }}</p>
+                        {{-- Status di bawah nama, bukan kolom sendiri: terlihat tanpa menggulir ke kanan. --}}
+                        <div class="mt-1">
+                            <x-nawasara-ui::badge :color="$badge">{{ $statusLabels[$row->status] }}</x-nawasara-ui::badge>
+                        </div>
                     </td>
                     <td class="px-6 py-4 font-mono text-sm text-neutral-700 dark:text-neutral-200">{{ $row->version }}</td>
-                    <td class="px-6 py-4">
-                        <x-nawasara-ui::badge :color="$badge">{{ $statusLabels[$row->status] }}</x-nawasara-ui::badge>
-                    </td>
                     <td class="px-6 py-4 text-sm text-neutral-700 dark:text-neutral-200">
                         {{ $row->effective_at ? $row->effective_at->timezone($timezone)->translatedFormat('j M Y H:i').' WIB' : '—' }}
                     </td>
