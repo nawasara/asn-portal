@@ -38,6 +38,9 @@ final class ActivityPresenter
         'mailbox_forwarder_removed' => ['Penerusan email dihapus', 'change'],
         'vpn_config_downloaded' => ['Konfigurasi VPN diunduh', 'change'],
         'vpn_renew_requested' => ['Perpanjangan VPN diajukan', 'change'],
+        // Console membuka shell root di container: pemiliknya harus dapat
+        // melihat setiap pembukaan atas namanya, termasuk yang bukan dia.
+        'server_console_opened' => ['Membuka console server', 'sign_in'],
     ];
 
     /**
