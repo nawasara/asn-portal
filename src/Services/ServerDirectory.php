@@ -43,6 +43,11 @@ class ServerDirectory
             ->get()
             ->keyBy('vmid');
 
+        $console = class_exists(\Nawasara\Proxmox\Services\KisaraConsole::class)
+            ? app(\Nawasara\Proxmox\Services\KisaraConsole::class)
+            : null;
+        $consoleOn = $console?->enabled() ?? false;
+
         $ips = class_exists(\Nawasara\Proxmox\Models\ProxmoxIpAddress::class)
             ? \Nawasara\Proxmox\Models\ProxmoxIpAddress::query()
                 ->whereIn('vmid', $vmids)
@@ -52,7 +57,7 @@ class ServerDirectory
                 ->map(fn ($rows) => $rows->pluck('ip')->unique()->values()->all())
             : collect();
 
-        return $assets->map(function ($asset) use ($vms, $ips) {
+        return $assets->map(function ($asset) use ($vms, $ips, $console, $consoleOn) {
             $vmid = (int) $asset->external_id;
             $vm = $vms->get($vmid);
 
@@ -81,6 +86,9 @@ class ServerDirectory
                 'uptime_seconds' => $vm && $vm->isRunning() ? $vm->uptime : null,
                 'ip_addresses' => $ips->get($vmid, []),
                 'synced_at' => $vm?->last_synced_at?->toIso8601String(),
+                // Tombol "Buka console" di Akun Kisara: hanya container yang
+                // menyala, dan hanya bila console Kisara sudah disiapkan.
+                'console' => $consoleOn && $console->supports($vm),
             ];
         })->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)->values();
     }

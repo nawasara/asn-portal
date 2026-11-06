@@ -109,7 +109,8 @@ Middleware: `api.staff.identity` → `api.client:<ASN_PORTAL_KC_CLIENT>` → bat
 | POST | `/account/vpn/{id}/config` | 🔒 `{filename, config}`; QR dirender portal dari isi yang sama |
 | POST | `/account/vpn/{id}/renew-request` | tandai minta perpanjang untuk admin |
 | GET | `/account/sites` | situs yang dipegang + uptime, hosting, PHP, jumlah temuan |
-| GET | `/account/servers` | server/VM Proxmox yang dipegang sebagai PIC + status, CPU, memori, disk, uptime, IP |
+| GET | `/account/servers` | server/VM Proxmox yang dipegang sebagai PIC + status, CPU, memori, disk, uptime, IP, `console` |
+| POST | `/account/servers/{vmid}/console` | tautan console container sekali pakai (`recent-auth`); 404 bila bukan PIC |
 | GET | `/account/storage` | `personal` (kotak pribadi pertama), `mailboxes` (sisanya), `hosting` |
 
 🔒 = `api.recent-auth`: login lebih tua dari `ASN_PORTAL_RECENT_AUTH_SECONDS` dijawab 401 `reauth_required`.

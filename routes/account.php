@@ -80,4 +80,5 @@ Route::post('/vpn/{id}/renew-request', [VpnController::class, 'requestRenewal'])
 Route::get('/sites', SiteController::class)->name('sites');
 // Server/VM yang dipegang (PIC lewat registry, angka dari snapshot proxmox).
 Route::get('/servers', ServerController::class)->name('servers');
+Route::post('/servers/{vmid}/console', [ServerController::class, 'console'])->whereNumber('vmid')->middleware([$recentAuth, 'throttle:10,1'])->name('servers.console');
 Route::get('/storage', StorageController::class)->name('storage');
