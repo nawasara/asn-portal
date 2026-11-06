@@ -41,6 +41,7 @@ final class ActivityPresenter
         // Console membuka shell root di container: pemiliknya harus dapat
         // melihat setiap pembukaan atas namanya, termasuk yang bukan dia.
         'server_console_opened' => ['Membuka console server', 'sign_in'],
+        'cpanel_opened' => ['Membuka cPanel situs', 'sign_in'],
     ];
 
     /**

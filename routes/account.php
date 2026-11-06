@@ -78,6 +78,7 @@ Route::post('/vpn/{id}/config', [VpnController::class, 'config'])->whereNumber('
 Route::post('/vpn/{id}/renew-request', [VpnController::class, 'requestRenewal'])->whereNumber('id')->name('vpn.renew-request');
 
 Route::get('/sites', SiteController::class)->name('sites');
+Route::post('/sites/{host}/cpanel', [SiteController::class, 'cpanel'])->where('host', '[A-Za-z0-9.-]+')->middleware([$recentAuth, 'throttle:10,1'])->name('sites.cpanel');
 // Server/VM yang dipegang (PIC lewat registry, angka dari snapshot proxmox).
 Route::get('/servers', ServerController::class)->name('servers');
 Route::post('/servers/{vmid}/console', [ServerController::class, 'console'])->whereNumber('vmid')->middleware([$recentAuth, 'throttle:10,1'])->name('servers.console');

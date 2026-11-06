@@ -108,7 +108,8 @@ Middleware: `api.staff.identity` → `api.client:<ASN_PORTAL_KC_CLIENT>` → bat
 | GET | `/account/vpn` | akun VPN milik sendiri, `last_handshake_at`, `renew_requested_at` |
 | POST | `/account/vpn/{id}/config` | 🔒 `{filename, config}`; QR dirender portal dari isi yang sama |
 | POST | `/account/vpn/{id}/renew-request` | tandai minta perpanjang untuk admin |
-| GET | `/account/sites` | situs yang dipegang + uptime, hosting, PHP, jumlah temuan |
+| GET | `/account/sites` | situs yang dipegang + uptime, hosting, PHP, jumlah temuan, `cpanel` |
+| POST | `/account/sites/{host}/cpanel` | URL login cPanel sekali pakai (`recent-auth`); 404 bila bukan PIC akun cPanel itu |
 | GET | `/account/servers` | server/VM Proxmox yang dipegang sebagai PIC + status, CPU, memori, disk, uptime, IP, `console` |
 | POST | `/account/servers/{vmid}/console` | tautan console container sekali pakai (`recent-auth`); 404 bila bukan PIC |
 | GET | `/account/storage` | `personal` (kotak pribadi pertama), `mailboxes` (sisanya), `hosting` |

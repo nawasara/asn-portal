@@ -56,8 +56,18 @@ class SiteDirectory
         $assets = app(\Nawasara\Registry\Services\AssetAssignmentService::class)
             ->assetsForKeycloakSub($sub, self::ASSET_TYPES);
 
+        // Hosts the user can open cPanel for: any of their assets on that host
+        // linked to a WHM account. Tracked apart from $sites, which keeps one
+        // asset per host — a hand-registered domain asset would otherwise
+        // hide the cPanel account on the same host.
+        $cpanelHosts = [];
+
         foreach ($assets as $asset) {
             $host = SiteHost::normalize($asset->identifier);
+
+            if ($host !== null && $asset->package_ref === 'whm' && $asset->external_id) {
+                $cpanelHosts[$host] = true;
+            }
 
             if ($host === null || ($sites->has($host) && $sites[$host]['role'] === 'primary')) {
                 continue;
@@ -76,7 +86,30 @@ class SiteDirectory
             ]);
         }
 
-        return $sites->sortKeys();
+        $cpanelOn = class_exists(\Nawasara\Whm\Services\WebmailSessionService::class);
+
+        return $sites
+            ->map(fn (array $site, string $host) => $site + ['cpanel' => $cpanelOn && isset($cpanelHosts[$host])])
+            ->sortKeys();
+    }
+
+    /**
+     * The WHM-linked asset behind a host the user is PIC of, or null.
+     * Used by the cPanel login: the same list that shows the button decides
+     * whether it works.
+     */
+    public function cpanelAccountFor(string $sub, string $host): ?object
+    {
+        $host = SiteHost::normalize($host);
+
+        if ($host === null || ! class_exists(\Nawasara\Registry\Services\AssetAssignmentService::class)) {
+            return null;
+        }
+
+        return app(\Nawasara\Registry\Services\AssetAssignmentService::class)
+            ->assetsForKeycloakSub($sub, self::ASSET_TYPES)
+            ->first(fn ($a) => $a->package_ref === 'whm' && $a->external_id
+                && SiteHost::normalize($a->identifier) === $host);
     }
 
     private function uptime(array $hosts): array
