@@ -30,6 +30,36 @@ class PortalAudit
     }
 
     /**
+     * Like record(), but a failed write throws. For audit rows that are a
+     * condition of the action itself: opening a shared mailbox must be
+     * visible to its other holders, so no row means no opening (FSD FR-05).
+     *
+     * @param  array<string, mixed>  $extra
+     */
+    public function recordOrFail(string $event, string $sub, ?string $ip, array $extra = []): void
+    {
+        activity(self::LOG_NAME)
+            ->event($event)
+            ->withProperties(['sub' => $sub, 'ip' => $ip] + $extra)
+            ->log($event);
+    }
+
+    /** Events that record someone opening a mailbox; kept 1 year (FSD FR-05). */
+    public const MAILBOX_OPEN_EVENTS = ['webmail_opened', 'mailbox_opened'];
+
+    public const MAILBOX_OPEN_RETENTION_DAYS = 365;
+
+    /** Delete mailbox-opening rows older than the retention. Returns how many. */
+    public function pruneMailboxOpens(): int
+    {
+        return Activity::query()
+            ->where('log_name', self::LOG_NAME)
+            ->whereIn('event', self::MAILBOX_OPEN_EVENTS)
+            ->where('created_at', '<', now()->subDays(self::MAILBOX_OPEN_RETENTION_DAYS))
+            ->delete();
+    }
+
+    /**
      * @return list<array{event: string, at: int, ip: ?string}>
      */
     public function eventsFor(string $sub, int $days): array

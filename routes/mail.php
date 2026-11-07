@@ -12,4 +12,7 @@ use Nawasara\AsnPortal\Http\Api\MailController;
 | the `sub` on the token.
 */
 
+$address = '[^/]+';
+
 Route::get('/mailboxes', [MailController::class, 'mailboxes'])->name('mailboxes');
+Route::post('/mailboxes/{address}/opened', [MailController::class, 'opened'])->where('address', $address)->name('mailboxes.opened');

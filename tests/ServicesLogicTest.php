@@ -34,6 +34,14 @@ class ServicesLogicTest extends TestCase
         $this->assertSame('personal', \Nawasara\AsnPortal\Http\Api\MailController::present(['address' => 'a@ponorogo.go.id', 'kind' => 'personal', 'role' => null])['kind']);
     }
 
+    public function test_kisara_mail_openings_are_labelled_and_kept_with_webmail_openings(): void
+    {
+        $this->assertSame('Membuka email di Kisara Mail', \Nawasara\AsnPortal\Support\ActivityPresenter::PORTAL_EVENTS['mailbox_opened'][0]);
+        // Both channels feed the shared mailbox's access history and share the 1-year retention.
+        $this->assertSame(['webmail_opened', 'mailbox_opened'], \Nawasara\AsnPortal\Services\PortalAudit::MAILBOX_OPEN_EVENTS);
+        $this->assertSame(365, \Nawasara\AsnPortal\Services\PortalAudit::MAILBOX_OPEN_RETENTION_DAYS);
+    }
+
     public function test_site_host_normalises_every_spelling_to_one(): void
     {
         foreach ([

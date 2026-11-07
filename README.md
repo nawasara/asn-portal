@@ -125,6 +125,7 @@ Middleware: `api.staff.identity` → `api.client:<ASN_PORTAL_MAIL_KC_CLIENT>` �
 | Metode | Path | Isi |
 |---|---|---|
 | GET | `/mail/mailboxes` | `[{address, kind: personal\|shared, role}]` — sumber sama dengan `/account/mailboxes` |
+| POST | `/mail/mailboxes/{address}/opened` | 204; mencatat `mailbox_opened` (channel `kisara-mail`). 503 `audit_unavailable` bila jejak gagal ditulis — Kisara Mail lalu menolak membuka mailbox bersama |
 
 ### Reset MFA tanpa login (server portal)
 
@@ -147,6 +148,8 @@ Batas per IP.
 | GET | `/public/legal/{privacy\|terms}` | versi berlaku + `upcoming` bila sudah diumumkan; 404 `not_published` bila belum ada |
 
 ## Keputusan yang jangan dibatalkan
+
+**Pembukaan mailbox dicatat dari dua jalur dan disimpan 1 tahun.** `webmail_opened` (Roundcube lewat Akun Kisara) dan `mailbox_opened` (Kisara Mail) sama-sama muncul di riwayat akses mailbox bersama (`via`), dihapus otomatis setelah 365 hari oleh jadwal `prune-mailbox-opens` 03.40 WIB. Jejak lain portal tidak ikut dipangkas. `opened` sengaja *gagal* bila jejak tak tertulis (beda dengan `record()` biasa yang menelan galat): pembukaan mailbox bersama tanpa jejak adalah persis yang dicegah riwayat akses.
 
 **Kisara Mail punya grup rute sendiri (`/mail/*`), bukan ikut `/account/*`.** Rute akun dapat mengeluarkan sesi, mengunduh konfigurasi VPN, dan mengganti sandi; menambahkan client Kisara Mail ke `api.client` akun akan memberinya semua itu. Grup `/mail/*` hanya berisi yang dibutuhkan webmail, responsnya daftar-izin (tanpa `instance` WHM dan tanpa PIC lain), dan daftar mailbox-nya memakai `MailboxDirectory` yang sama supaya kedua aplikasi selalu sepakat siapa boleh membuka apa.
 

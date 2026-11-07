@@ -94,7 +94,7 @@ class MailboxController extends Controller
 
         $rows = \Spatie\Activitylog\Models\Activity::query()
             ->where('log_name', PortalAudit::LOG_NAME)
-            ->where('event', 'webmail_opened')
+            ->whereIn('event', PortalAudit::MAILBOX_OPEN_EVENTS)
             ->where('properties->mailbox', $mailbox['address'])
             ->where('created_at', '>=', now()->subDays(90))
             ->latest()
@@ -106,6 +106,8 @@ class MailboxController extends Controller
         return response()->json(['data' => $rows->map(fn ($a) => [
             'at' => $a->created_at->toIso8601String(),
             'by' => $names[$a->getExtraProperty('sub')] ?? 'PIC',
+            // Webmail (Roundcube) or Kisara Mail; both open the same mailbox.
+            'via' => $a->event === 'mailbox_opened' ? 'Kisara Mail' : 'Webmail',
         ])->values()]);
     }
 

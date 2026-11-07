@@ -3,6 +3,7 @@
 namespace Nawasara\AsnPortal;
 
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
@@ -48,6 +49,7 @@ class AsnPortalServiceProvider extends ServiceProvider
 
         $this->registerLivewire();
         $this->registerRateLimiters();
+        $this->registerSchedule();
         $this->registerApiScopes();
         $this->registerApiRoutes();
     }
@@ -188,6 +190,30 @@ class AsnPortalServiceProvider extends ServiceProvider
         RateLimiter::for('nawasara-asn-portal-public', function (Request $request) {
             return Limit::perMinute((int) config('nawasara-asn-portal.public_rate_limit_per_minute', 120))
                 ->by('asn-portal-public:'.$request->ip());
+        });
+    }
+
+    /**
+     * Mailbox-opening rows are kept one year (FSD FR-05), then removed. The
+     * rest of the portal audit keeps the activity log's own retention.
+     * $schedule->call(), not command(): see AGENTS.md §7.
+     */
+    protected function registerSchedule(): void
+    {
+        $this->app->booted(function () {
+            if (! $this->app->runningInConsole()) {
+                return;
+            }
+
+            $this->app->make(Schedule::class)
+                ->call(function () {
+                    $removed = app(\Nawasara\AsnPortal\Services\PortalAudit::class)->pruneMailboxOpens();
+                    \Illuminate\Support\Facades\Log::info('asn-portal: mailbox-open audit pruned', ['removed' => $removed]);
+                })
+                ->name('nawasara-asn-portal:prune-mailbox-opens')
+                ->dailyAt('03:40')
+                ->timezone('Asia/Jakarta')
+                ->withoutOverlapping(30);
         });
     }
 }

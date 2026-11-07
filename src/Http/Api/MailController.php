@@ -4,9 +4,13 @@ namespace Nawasara\AsnPortal\Http\Api;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\Log;
 use Nawasara\AsnPortal\Services\MailboxDirectory;
+use Nawasara\AsnPortal\Services\PortalAudit;
 use Nawasara\AsnPortal\Support\AccountIdentity;
+use Nawasara\AsnPortal\Support\ClientIp;
 
 /**
  * Endpoints for Kisara Mail (patra.ponorogo.go.id), mounted at
@@ -21,17 +25,55 @@ use Nawasara\AsnPortal\Support\AccountIdentity;
  */
 class MailController extends Controller
 {
-    public function __construct(protected MailboxDirectory $mailboxes) {}
+    public const CHANNEL = 'kisara-mail';
+
+    public function __construct(
+        protected MailboxDirectory $mailboxes,
+        protected PortalAudit $audit,
+    ) {}
 
     /** GET /mail/mailboxes */
     public function mailboxes(Request $request): JsonResponse
     {
-        $sub = (string) $request->attributes->get('staff_sub');
-        $nip = AccountIdentity::fromClaims((array) $request->attributes->get('staff_claims'))['nip'];
-
         return response()->json([
-            'data' => $this->mailboxes->forUser($sub, $nip)->map(fn (array $m) => self::present($m))->values(),
+            'data' => $this->mailboxes->forUser($this->sub($request), $this->nip($request))->map(fn (array $m) => self::present($m))->values(),
         ]);
+    }
+
+    /**
+     * POST /mail/mailboxes/{address}/opened — Kisara Mail is about to open
+     * this mailbox (once per session). Recorded with the channel so the
+     * shared mailbox's other holders see it next to webmail openings, and
+     * so usage of the two channels can be compared (FSD FR-05, FR-25).
+     *
+     * 503 when the row cannot be written: for a shared mailbox Kisara Mail
+     * then refuses to open it, because an unrecorded opening is exactly what
+     * the access history exists to prevent.
+     */
+    public function opened(Request $request, string $address): Response|JsonResponse
+    {
+        $mailbox = $this->mailboxes->find($this->sub($request), $this->nip($request), urldecode($address));
+
+        if ($mailbox === null) {
+            return response()->json(['error' => ['code' => 'not_found', 'message' => 'Kotak email tidak ditemukan.']], 404);
+        }
+
+        try {
+            $this->audit->recordOrFail('mailbox_opened', $this->sub($request), ClientIp::from($request), [
+                'mailbox' => $mailbox['address'],
+                'kind' => $mailbox['kind'],
+                'channel' => self::CHANNEL,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('asn-portal: mailbox_opened audit write failed', ['mailbox' => $mailbox['address'], 'error' => class_basename($e)]);
+
+            return response()->json(['error' => [
+                'code' => 'audit_unavailable',
+                'message' => 'Pencatatan akses sedang tidak tersedia. Silakan coba lagi.',
+            ]], 503);
+        }
+
+        return response()->noContent();
     }
 
     /**
@@ -50,5 +92,15 @@ class MailController extends Controller
             'kind' => $m['kind'] === 'personal' ? 'personal' : 'shared',
             'role' => isset($m['role']) ? (string) $m['role'] : null,
         ];
+    }
+
+    private function sub(Request $request): string
+    {
+        return (string) $request->attributes->get('staff_sub');
+    }
+
+    private function nip(Request $request): ?string
+    {
+        return AccountIdentity::fromClaims((array) $request->attributes->get('staff_claims'))['nip'];
     }
 }
