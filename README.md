@@ -125,6 +125,7 @@ Middleware: `api.staff.identity` → `api.client:<ASN_PORTAL_MAIL_KC_CLIENT>` �
 | Metode | Path | Isi |
 |---|---|---|
 | GET | `/mail/mailboxes` | `[{address, kind: personal\|shared, role}]` — sumber sama dengan `/account/mailboxes` |
+| GET | `/mail/directory?q=` | buku alamat ASN untuk saran penerima: `[{name, unit, email}]`, maks 10, minimal 2 huruf; hanya mailbox pribadi (1 NIP); **tanpa NIP** |
 | POST | `/mail/mailboxes/{address}/opened` | 204; mencatat `mailbox_opened` (channel `kisara-mail`). 503 `audit_unavailable` bila jejak gagal ditulis — Kisara Mail lalu menolak membuka mailbox bersama |
 
 ### Reset MFA tanpa login (server portal)

@@ -15,4 +15,5 @@ use Nawasara\AsnPortal\Http\Api\MailController;
 $address = '[^/]+';
 
 Route::get('/mailboxes', [MailController::class, 'mailboxes'])->name('mailboxes');
+Route::get('/directory', [MailController::class, 'directory'])->name('directory');
 Route::post('/mailboxes/{address}/opened', [MailController::class, 'opened'])->where('address', $address)->name('mailboxes.opened');

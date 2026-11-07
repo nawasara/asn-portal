@@ -9,6 +9,7 @@ use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Log;
 use Nawasara\AsnPortal\Services\MailboxDirectory;
 use Nawasara\AsnPortal\Services\PortalAudit;
+use Nawasara\AsnPortal\Services\StaffDirectory;
 use Nawasara\AsnPortal\Support\AccountIdentity;
 use Nawasara\AsnPortal\Support\ClientIp;
 
@@ -74,6 +75,16 @@ class MailController extends Controller
         }
 
         return response()->noContent();
+    }
+
+    /**
+     * GET /mail/directory?q= — ASN address book for recipient suggestions
+     * (FSD FR-19): name, unit and email of personal mailboxes, at most 10.
+     * No NIP, phone or other personal data.
+     */
+    public function directory(Request $request, StaffDirectory $directory): JsonResponse
+    {
+        return response()->json(['data' => $directory->search((string) $request->query('q', ''))]);
     }
 
     /**
