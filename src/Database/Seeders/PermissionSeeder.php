@@ -20,6 +20,9 @@ class PermissionSeeder extends Seeder
             // published version binds every civil servant and cannot be
             // changed afterwards.
             'asn-portal.legal.publish',
+
+            // Weekly mailbox openings per channel (Roundcube vs Kisara Mail).
+            'asn-portal.usage.view',
         ];
 
         foreach ($permissions as $permission) {

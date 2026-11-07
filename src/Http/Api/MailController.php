@@ -78,6 +78,20 @@ class MailController extends Controller
     }
 
     /**
+     * POST /mail/mailboxes/{address}/webmail — the way out to the old
+     * webmail (FSD FR-24), e.g. when Kisara Mail cannot open a mailbox.
+     *
+     * Deliberately the SAME code as Akun Kisara's webmail button: same
+     * mailbox check, same one-time WHM session, same `webmail_opened` record.
+     * A second implementation would drift, and this is the path that hands
+     * out a login.
+     */
+    public function webmail(Request $request, string $address): JsonResponse
+    {
+        return app(MailboxController::class)->webmail($request, $address);
+    }
+
+    /**
      * GET /mail/directory?q= — ASN address book for recipient suggestions
      * (FSD FR-19): name, unit and email of personal mailboxes, at most 10.
      * No NIP, phone or other personal data.

@@ -127,6 +127,7 @@ Middleware: `api.staff.identity` → `api.client:<ASN_PORTAL_MAIL_KC_CLIENT>` �
 | GET | `/mail/mailboxes` | `[{address, kind: personal\|shared, role}]` — sumber sama dengan `/account/mailboxes` |
 | GET | `/mail/directory?q=` | buku alamat ASN untuk saran penerima: `[{name, unit, email}]`, maks 10, minimal 2 huruf; hanya mailbox pribadi (1 NIP); **tanpa NIP** |
 | POST | `/mail/mailboxes/{address}/opened` | 204; mencatat `mailbox_opened` (channel `kisara-mail`). 503 `audit_unavailable` bila jejak gagal ditulis — Kisara Mail lalu menolak membuka mailbox bersama |
+| POST | `/mail/mailboxes/{address}/webmail` | `{url, expires_in}` — jalan keluar ke Roundcube (FR-24); **kode yang sama** dengan tombol webmail Akun Kisara (`MailboxController::webmail`), jadi aturan dan jejak `webmail_opened`-nya identik |
 
 ### Kisara Mail antarserver (token `nws_`)
 
@@ -223,6 +224,8 @@ Batas per IP.
 | `asn-portal.content.view` | melihat konten portal di panel |
 | `asn-portal.content.manage` | mengubah katalog, bantuan, dan draf dokumen hukum |
 | `asn-portal.legal.publish` | menerbitkan dokumen hukum (mengikat semua ASN, tidak bisa diubah sesudahnya) |
+
+- `asn-portal.usage.view` — halaman **Pemakaian Email** (`/nawasara-asn-portal/usage`): pembukaan mailbox per minggu per jalur (Roundcube lewat Akun Kisara vs Kisara Mail) dan ASN unik, untuk memutuskan kapan Kisara Mail dapat menggantikan Roundcube (FR-25 Kisara Mail).
 
 ## Roadmap
 

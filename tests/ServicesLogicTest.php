@@ -7,6 +7,8 @@ namespace Nawasara\AsnPortal\Tests;
 use Nawasara\AsnPortal\Http\Api\MailServiceController;
 use Nawasara\AsnPortal\Http\Api\StorageController;
 use Nawasara\AsnPortal\Services\MailboxDirectory;
+use Nawasara\AsnPortal\Services\MailUsage;
+use Carbon\CarbonImmutable;
 use Nawasara\AsnPortal\Support\ForwardingPolicy;
 use Nawasara\AsnPortal\Support\SiteHost;
 use PHPUnit\Framework\TestCase;
@@ -16,6 +18,28 @@ use PHPUnit\Framework\TestCase;
  */
 class ServicesLogicTest extends TestCase
 {
+    public function test_mail_usage_counts_openings_and_unique_staff_per_channel_per_wib_week(): void
+    {
+        $now = CarbonImmutable::parse('2026-11-07 10:00', 'Asia/Jakarta'); // Saturday
+        $at = fn (string $wib) => CarbonImmutable::parse($wib, 'Asia/Jakarta')->utc();
+        $rows = [
+            ['at' => $at('2026-11-02 00:30'), 'event' => 'webmail_opened', 'channel' => null, 'sub' => 'a'],  // Monday 00:30 WIB = Sunday UTC
+            ['at' => $at('2026-11-03 09:00'), 'event' => 'webmail_opened', 'channel' => null, 'sub' => 'a'],
+            ['at' => $at('2026-11-04 09:00'), 'event' => 'mailbox_opened', 'channel' => 'kisara-mail', 'sub' => 'a'],
+            ['at' => $at('2026-11-05 09:00'), 'event' => 'mailbox_opened', 'channel' => 'kisara-mail', 'sub' => 'b'],
+            ['at' => $at('2026-11-05 10:00'), 'event' => 'mailbox_opened', 'channel' => 'other', 'sub' => 'c'],
+            ['at' => $at('2026-11-01 23:00'), 'event' => 'webmail_opened', 'channel' => null, 'sub' => 'd'],  // previous week
+            ['at' => $at('2026-01-01 09:00'), 'event' => 'webmail_opened', 'channel' => null, 'sub' => 'e'],  // outside the range
+        ];
+
+        $out = MailUsage::aggregate($rows, $now, 3);
+
+        $this->assertSame(['2026-11-02', '2026-10-26', '2026-10-19'], array_column($out, 'week'));
+        $this->assertSame(['week' => '2026-11-02', 'roundcube_opens' => 2, 'roundcube_users' => 1, 'kisara_opens' => 2, 'kisara_users' => 2], $out[0]);
+        $this->assertSame(1, $out[1]['roundcube_opens']);
+        $this->assertSame(0, $out[2]['roundcube_opens'] + $out[2]['kisara_opens']);
+    }
+
     public function test_holdings_answers_yes_or_no_per_pair_with_one_lookup_per_person(): void
     {
         $lookups = [];

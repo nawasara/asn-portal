@@ -48,6 +48,18 @@ return [
                 'permission' => 'asn-portal.content.view',
                 'navigate' => true,
             ],
+            [
+                'section' => 'Pemantauan',
+                'icon' => 'lucide-chart-column',
+                'permission' => 'asn-portal.usage.view',
+            ],
+            [
+                'label' => 'Pemakaian Email',
+                'icon' => 'lucide-mail',
+                'url' => url($prefix.'/usage'),
+                'permission' => 'asn-portal.usage.view',
+                'navigate' => true,
+            ],
         ],
     ],
 ];
