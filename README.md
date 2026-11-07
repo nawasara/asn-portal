@@ -128,6 +128,16 @@ Middleware: `api.staff.identity` → `api.client:<ASN_PORTAL_MAIL_KC_CLIENT>` �
 | GET | `/mail/directory?q=` | buku alamat ASN untuk saran penerima: `[{name, unit, email}]`, maks 10, minimal 2 huruf; hanya mailbox pribadi (1 NIP); **tanpa NIP** |
 | POST | `/mail/mailboxes/{address}/opened` | 204; mencatat `mailbox_opened` (channel `kisara-mail`). 503 `audit_unavailable` bila jejak gagal ditulis — Kisara Mail lalu menolak membuka mailbox bersama |
 
+### Kisara Mail antarserver (token `nws_`)
+
+Prefiks `/mail-service`, middleware `api.auth` + scope **`asn-portal.mail.holdings`** (token khusus server Kisara Mail, IP diizinkan hanya LXC 143), 30/menit.
+
+| Metode | Path | Isi |
+|---|---|---|
+| POST | `/mail-service/holdings` | `{checks: [{sub, nip?, mailbox}]}` (maks 200) → `{data: [{sub, mailbox, held}]}` |
+
+Dipakai *watcher* pemberitahuan Kisara Mail, yang berjalan saat tak ada yang masuk sehingga tak punya token pengguna. Hanya menjawab ya/tidak untuk pasangan yang ditanyakan — **tidak pernah** mendaftar siapa pemegang sebuah mailbox, jadi token ini tak dapat dipakai menelusuri direktori.
+
 ### Reset MFA tanpa login (server portal)
 
 Middleware: `api.auth` (token `nws_` server portal) → `scope:asn-portal.mfa.reset` → batas per IP asli. Server portal meneruskan IP pengguna di header `X-Portal-Client-IP`.

@@ -126,6 +126,14 @@ class AsnPortalServiceProvider extends ServiceProvider
             ->name('nawasara-asn-portal.mail.')
             ->group(__DIR__.'/../routes/mail.php');
 
+        // Kisara Mail's server (push watcher), with its own nws_ token. Kept
+        // apart from /mail: those routes act as a signed-in user, this one
+        // answers yes/no for users who are not signed in.
+        Route::prefix($prefix.'/mail-service')
+            ->middleware(['api', 'api.auth', 'scope:asn-portal.mail.holdings', 'api.log', 'throttle:nawasara-asn-portal-mail-service'])
+            ->name('nawasara-asn-portal.mail-service.')
+            ->group(__DIR__.'/../routes/mail-service.php');
+
         // Registered BEFORE the open public group: same prefix, and these
         // routes need the server token, not just a rate limit.
         Route::prefix($prefix.'/public/mfa-reset')
@@ -154,6 +162,11 @@ class AsnPortalServiceProvider extends ServiceProvider
             'asn-portal.mfa.reset',
             'Reset verifikasi dua langkah ASN tanpa login (kirim + verifikasi kode). Hanya untuk server Akun ASN; jangan digabung dengan scope lain.',
         );
+
+        $this->app->make(\Nawasara\Api\Support\ScopeRegistry::class)->register(
+            'asn-portal.mail.holdings',
+            'Periksa apakah ASN masih memegang mailbox (ya/tidak per pasangan). Hanya untuk server Kisara Mail (watcher pemberitahuan).',
+        );
     }
 
     /**
@@ -173,6 +186,9 @@ class AsnPortalServiceProvider extends ServiceProvider
 
         // Kisara Mail checks mailbox ownership on behalf of the user and
         // caches it for 60 s, so a normal session stays far below this.
+        // One caller (the Kisara Mail watcher, once a minute); generous but bounded.
+        RateLimiter::for('nawasara-asn-portal-mail-service', fn (Request $request) => Limit::perMinute(30)->by('asn-portal-mail-service:'.$request->ip()));
+
         RateLimiter::for('nawasara-asn-portal-mail', function (Request $request) {
             $sub = $request->attributes->get('staff_sub');
 

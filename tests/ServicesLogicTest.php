@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nawasara\AsnPortal\Tests;
 
+use Nawasara\AsnPortal\Http\Api\MailServiceController;
 use Nawasara\AsnPortal\Http\Api\StorageController;
 use Nawasara\AsnPortal\Services\MailboxDirectory;
 use Nawasara\AsnPortal\Support\ForwardingPolicy;
@@ -15,6 +16,27 @@ use PHPUnit\Framework\TestCase;
  */
 class ServicesLogicTest extends TestCase
 {
+    public function test_holdings_answers_yes_or_no_per_pair_with_one_lookup_per_person(): void
+    {
+        $lookups = [];
+        $directory = function (string $sub, ?string $nip) use (&$lookups): array {
+            $lookups[] = $sub.'|'.$nip;
+
+            return $sub === 'pringgo' ? ['Pringgo@ponorogo.go.id', 'aptika@ponorogo.go.id'] : [];
+        };
+
+        $out = MailServiceController::answer([
+            ['sub' => 'pringgo', 'nip' => '198001012010011001', 'mailbox' => 'pringgo@ponorogo.go.id'],
+            ['sub' => 'pringgo', 'nip' => '198001012010011001', 'mailbox' => 'APTIKA@ponorogo.go.id'],
+            ['sub' => 'pringgo', 'nip' => '198001012010011001', 'mailbox' => 'dicabut@ponorogo.go.id'],
+            ['sub' => 'lain', 'mailbox' => 'aptika@ponorogo.go.id'],
+        ], $directory);
+
+        $this->assertSame([true, true, false, false], array_column($out, 'held'));
+        $this->assertSame('aptika@ponorogo.go.id', $out[1]['mailbox']);
+        $this->assertSame(['pringgo|198001012010011001', 'lain|'], $lookups);
+    }
+
     public function test_kisara_mail_sees_only_address_kind_and_role(): void
     {
         $row = [
