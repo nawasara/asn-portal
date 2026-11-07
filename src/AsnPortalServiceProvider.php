@@ -50,6 +50,7 @@ class AsnPortalServiceProvider extends ServiceProvider
         $this->registerLivewire();
         $this->registerRateLimiters();
         $this->registerSchedule();
+        $this->registerAlertRules();
         $this->registerApiScopes();
         $this->registerApiRoutes();
     }
@@ -214,6 +215,36 @@ class AsnPortalServiceProvider extends ServiceProvider
      * rest of the portal audit keeps the activity log's own retention.
      * $schedule->call(), not command(): see AGENTS.md §7.
      */
+    /**
+     * Alert rules for Kisara Mail's health. Guarded: nawasara/alerting is
+     * optional for this package. registerOrReplaceRule survives a provider
+     * reload during deploy.
+     */
+    protected function registerAlertRules(): void
+    {
+        if (! class_exists(\Nawasara\Alerting\Facades\Alerter::class)) {
+            return;
+        }
+
+        \Nawasara\Alerting\Facades\Alerter::registerOrReplaceRule(\Nawasara\Alerting\Models\AlertRule::make([
+            'key' => \Nawasara\AsnPortal\Services\KisaraMailHealth::RULE_IMAP,
+            'severity' => 'critical',
+            'category' => 'infrastructure',
+            'cooldown_minutes' => 30,
+            'description' => 'Kisara Mail gagal masuk ke mail server (Ryder) melebihi ambang',
+            'subject_template' => '[{severity}] Kisara Mail: {context.pct}% login IMAP gagal ({context.failures}/{context.attempts}) dalam {context.minutes} menit',
+        ]));
+
+        \Nawasara\Alerting\Facades\Alerter::registerOrReplaceRule(\Nawasara\Alerting\Models\AlertRule::make([
+            'key' => \Nawasara\AsnPortal\Services\KisaraMailHealth::RULE_UNREACHABLE,
+            'severity' => 'warning',
+            'category' => 'infrastructure',
+            'cooldown_minutes' => 30,
+            'description' => 'Penghitung kesehatan Kisara Mail tidak dapat dibaca',
+            'subject_template' => '[{severity}] Kisara Mail tidak menjawab pemeriksaan kesehatan',
+        ]));
+    }
+
     protected function registerSchedule(): void
     {
         $this->app->booted(function () {
@@ -230,6 +261,13 @@ class AsnPortalServiceProvider extends ServiceProvider
                 ->dailyAt('03:40')
                 ->timezone('Asia/Jakarta')
                 ->withoutOverlapping(30);
+
+            // Kisara Mail health; does nothing until KISARA_MAIL_METRICS_URL is set.
+            $this->app->make(Schedule::class)
+                ->call(fn () => app(\Nawasara\AsnPortal\Services\KisaraMailHealth::class)->check())
+                ->name('nawasara-asn-portal:kisara-mail-health')
+                ->everyFiveMinutes()
+                ->withoutOverlapping(5);
         });
     }
 }

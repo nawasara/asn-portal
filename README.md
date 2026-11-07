@@ -161,6 +161,8 @@ Batas per IP.
 
 ## Keputusan yang jangan dibatalkan
 
+**Kesehatan Kisara Mail ditarik, bukan dikirim.** Tiap 5 menit `KisaraMailHealth` membaca `KISARA_MAIL_METRICS_URL` (prod: `http://10.1.1.35:8080/internal/metrics`) lalu `Alerter::fire` `kisara-mail.imap-failing` (critical) bila > 5 % login IMAP gagal dari minimal 10 percobaan, dan `kisara-mail.unreachable` (warning) bila penghitungnya tak terbaca. Ditarik supaya Kisara Mail tidak butuh kredensial Nawasara untuk melapor; endpoint itu hanya terjangkau dari dalam (port 8080 hanya untuk LXC 140, lewat Cloudflare dijawab 404). URL kosong = mati, sehingga lingkungan dev tak membunyikan alarm tentang server yang tak dapat dijangkaunya. Di bawah 10 percobaan tidak ada putusan: 1 gagal dari 3 = 33 % dan tidak berarti apa-apa.
+
 **Pembukaan mailbox dicatat dari dua jalur dan disimpan 1 tahun.** `webmail_opened` (Roundcube lewat Akun Kisara) dan `mailbox_opened` (Kisara Mail) sama-sama muncul di riwayat akses mailbox bersama (`via`), dihapus otomatis setelah 365 hari oleh jadwal `prune-mailbox-opens` 03.40 WIB. Jejak lain portal tidak ikut dipangkas. `opened` sengaja *gagal* bila jejak tak tertulis (beda dengan `record()` biasa yang menelan galat): pembukaan mailbox bersama tanpa jejak adalah persis yang dicegah riwayat akses.
 
 **Kisara Mail punya grup rute sendiri (`/mail/*`), bukan ikut `/account/*`.** Rute akun dapat mengeluarkan sesi, mengunduh konfigurasi VPN, dan mengganti sandi; menambahkan client Kisara Mail ke `api.client` akun akan memberinya semua itu. Grup `/mail/*` hanya berisi yang dibutuhkan webmail, responsnya daftar-izin (tanpa `instance` WHM dan tanpa PIC lain), dan daftar mailbox-nya memakai `MailboxDirectory` yang sama supaya kedua aplikasi selalu sepakat siapa boleh membuka apa.

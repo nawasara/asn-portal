@@ -8,6 +8,7 @@ use Nawasara\AsnPortal\Http\Api\MailServiceController;
 use Nawasara\AsnPortal\Http\Api\StorageController;
 use Nawasara\AsnPortal\Services\MailboxDirectory;
 use Nawasara\AsnPortal\Services\MailUsage;
+use Nawasara\AsnPortal\Services\KisaraMailHealth;
 use Carbon\CarbonImmutable;
 use Nawasara\AsnPortal\Support\ForwardingPolicy;
 use Nawasara\AsnPortal\Support\SiteHost;
@@ -18,6 +19,14 @@ use PHPUnit\Framework\TestCase;
  */
 class ServicesLogicTest extends TestCase
 {
+    public function test_kisara_mail_imap_alert_needs_enough_logins_and_more_than_the_ratio(): void
+    {
+        $this->assertSame('quiet', KisaraMailHealth::assess(5, 5, 0.05, 10));
+        $this->assertSame('ok', KisaraMailHealth::assess(100, 5, 0.05, 10));
+        $this->assertSame('failing', KisaraMailHealth::assess(100, 6, 0.05, 10));
+        $this->assertSame('failing', KisaraMailHealth::assess(10, 10, 0.05, 10));
+    }
+
     public function test_mail_usage_counts_openings_and_unique_staff_per_channel_per_wib_week(): void
     {
         $now = CarbonImmutable::parse('2026-11-07 10:00', 'Asia/Jakarta'); // Saturday

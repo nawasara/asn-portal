@@ -25,6 +25,18 @@ return [
     'mail_rate_limit_per_minute' => (int) env('ASN_PORTAL_MAIL_RATE_PER_MINUTE', 120),
 
     /*
+    | Kisara Mail health (its NFR-07): Nawasara reads Kisara Mail's failure
+    | counters every 5 minutes and alerts on Telegram above the ratio.
+    | Empty URL = off (every environment except production).
+    | Production: http://10.1.1.35:8080/internal/metrics
+    */
+    'kisara_mail' => [
+        'metrics_url' => env('KISARA_MAIL_METRICS_URL', ''),
+        'imap_failure_ratio' => (float) env('KISARA_MAIL_IMAP_FAILURE_RATIO', 0.05),
+        'min_attempts' => (int) env('KISARA_MAIL_MIN_ATTEMPTS', 10),
+    ],
+
+    /*
     | How fresh a login must be (seconds since `auth_time`) before an action
     | that changes sign-in methods or reveals a secret is allowed. Older
     | logins get `max_age=0` added to the Keycloak redirect, which forces the
