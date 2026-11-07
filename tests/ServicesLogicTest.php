@@ -15,6 +15,25 @@ use PHPUnit\Framework\TestCase;
  */
 class ServicesLogicTest extends TestCase
 {
+    public function test_kisara_mail_sees_only_address_kind_and_role(): void
+    {
+        $row = [
+            'address' => 'aptika@ponorogo.go.id',
+            'kind' => 'agency',
+            'role' => 'PIC',
+            'instance' => 'Ryder',
+            'pics' => [['sub' => 'other-sub', 'name' => 'Rekan']],
+            'quota_mb' => 5120,
+            'used_mb' => 4700,
+        ];
+
+        $this->assertSame(
+            ['address' => 'aptika@ponorogo.go.id', 'kind' => 'shared', 'role' => 'PIC'],
+            \Nawasara\AsnPortal\Http\Api\MailController::present($row),
+        );
+        $this->assertSame('personal', \Nawasara\AsnPortal\Http\Api\MailController::present(['address' => 'a@ponorogo.go.id', 'kind' => 'personal', 'role' => null])['kind']);
+    }
+
     public function test_site_host_normalises_every_spelling_to_one(): void
     {
         foreach ([

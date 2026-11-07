@@ -114,6 +114,16 @@ class AsnPortalServiceProvider extends ServiceProvider
             ->name('nawasara-asn-portal.account.')
             ->group(__DIR__.'/../routes/account.php');
 
+        // Kisara Mail gets its own group and its own client: it must not be
+        // able to call the account routes above, and vice versa. Same rule
+        // as above: no client configured means the group rejects everything.
+        $mailClient = trim((string) config('nawasara-asn-portal.mail_client_id', ''));
+
+        Route::prefix($prefix.'/mail')
+            ->middleware(['api', 'api.staff.identity', 'api.client:'.$mailClient, 'throttle:nawasara-asn-portal-mail'])
+            ->name('nawasara-asn-portal.mail.')
+            ->group(__DIR__.'/../routes/mail.php');
+
         // Registered BEFORE the open public group: same prefix, and these
         // routes need the server token, not just a rate limit.
         Route::prefix($prefix.'/public/mfa-reset')
@@ -157,6 +167,15 @@ class AsnPortalServiceProvider extends ServiceProvider
 
             return Limit::perMinute((int) config('nawasara-asn-portal.rate_limit_per_minute', 60))
                 ->by(is_string($sub) && $sub !== '' ? 'asn-portal:'.$sub : 'asn-portal-ip:'.$request->ip());
+        });
+
+        // Kisara Mail checks mailbox ownership on behalf of the user and
+        // caches it for 60 s, so a normal session stays far below this.
+        RateLimiter::for('nawasara-asn-portal-mail', function (Request $request) {
+            $sub = $request->attributes->get('staff_sub');
+
+            return Limit::perMinute((int) config('nawasara-asn-portal.mail_rate_limit_per_minute', 120))
+                ->by(is_string($sub) && $sub !== '' ? 'asn-portal-mail:'.$sub : 'asn-portal-mail-ip:'.$request->ip());
         });
 
         // Keyed on the REAL requester (forwarded by the portal server), not

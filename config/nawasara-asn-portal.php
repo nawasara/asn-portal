@@ -16,6 +16,15 @@ return [
     'client_id' => env('ASN_PORTAL_KC_CLIENT', ''),
 
     /*
+    | The Keycloak client of Kisara Mail (patra.ponorogo.go.id). Mail routes
+    | (/asn-portal/mail/*) accept ONLY tokens whose `azp` is this client;
+    | empty = every mail request is rejected. Must also be listed in
+    | NAWASARA_STAFF_KC_CLIENTS.
+    */
+    'mail_client_id' => env('ASN_PORTAL_MAIL_KC_CLIENT', ''),
+    'mail_rate_limit_per_minute' => (int) env('ASN_PORTAL_MAIL_RATE_PER_MINUTE', 120),
+
+    /*
     | How fresh a login must be (seconds since `auth_time`) before an action
     | that changes sign-in methods or reveals a secret is allowed. Older
     | logins get `max_age=0` added to the Keycloak redirect, which forces the

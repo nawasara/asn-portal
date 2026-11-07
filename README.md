@@ -46,7 +46,9 @@ php artisan db:seed --class="Nawasara\AsnPortal\Database\Seeders\ContentSeeder"
 # client OIDC portal di realm asn-productions
 ASN_PORTAL_KC_CLIENT=asn-portal
 # client yang sama WAJIB juga ada di daftar ini, kalau tidak token ditolak lebih awal
-NAWASARA_STAFF_KC_CLIENTS=nawasara-panel,asn-portal
+NAWASARA_STAFF_KC_CLIENTS=nawasara-panel,asn-portal,kisara-mail
+# client Kisara Mail (patra.ponorogo.go.id); kosong = rute /mail/* menolak semua
+ASN_PORTAL_MAIL_KC_CLIENT=kisara-mail
 
 # opsional, bawaannya sudah benar untuk produksi
 ASN_PORTAL_KC_REALM=              # kosong = client Keycloak bawaan (Vault `keycloak`)
@@ -116,6 +118,14 @@ Middleware: `api.staff.identity` → `api.client:<ASN_PORTAL_KC_CLIENT>` → bat
 
 🔒 = `api.recent-auth`: login lebih tua dari `ASN_PORTAL_RECENT_AUTH_SECONDS` dijawab 401 `reauth_required`.
 
+### Kisara Mail (butuh login)
+
+Middleware: `api.staff.identity` → `api.client:<ASN_PORTAL_MAIL_KC_CLIENT>` → batas per `sub` (`ASN_PORTAL_MAIL_RATE_PER_MINUTE`, bawaan 120).
+
+| Metode | Path | Isi |
+|---|---|---|
+| GET | `/mail/mailboxes` | `[{address, kind: personal\|shared, role}]` — sumber sama dengan `/account/mailboxes` |
+
 ### Reset MFA tanpa login (server portal)
 
 Middleware: `api.auth` (token `nws_` server portal) → `scope:asn-portal.mfa.reset` → batas per IP asli. Server portal meneruskan IP pengguna di header `X-Portal-Client-IP`.
@@ -137,6 +147,8 @@ Batas per IP.
 | GET | `/public/legal/{privacy\|terms}` | versi berlaku + `upcoming` bila sudah diumumkan; 404 `not_published` bila belum ada |
 
 ## Keputusan yang jangan dibatalkan
+
+**Kisara Mail punya grup rute sendiri (`/mail/*`), bukan ikut `/account/*`.** Rute akun dapat mengeluarkan sesi, mengunduh konfigurasi VPN, dan mengganti sandi; menambahkan client Kisara Mail ke `api.client` akun akan memberinya semua itu. Grup `/mail/*` hanya berisi yang dibutuhkan webmail, responsnya daftar-izin (tanpa `instance` WHM dan tanpa PIC lain), dan daftar mailbox-nya memakai `MailboxDirectory` yang sama supaya kedua aplikasi selalu sepakat siapa boleh membuka apa.
 
 **`/account/servers` hanya membaca, tanpa tautan console.** Data diambil dari snapshot proxmox (diperbarui beberapa menit sekali), bukan dari API Proxmox saat halaman dibuka. Kolomnya daftar-izin di `ServerDirectory`: tanpa id internal, tanpa kredensial, tanpa console. Membuka console tetap aksi panel yang punya izin dan jejak auditnya sendiri. `disk_percent` sengaja `null` untuk VM QEMU, karena tanpa guest agent Proxmox melaporkan 0, dan 0% akan tampak seperti disk kosong.
 
