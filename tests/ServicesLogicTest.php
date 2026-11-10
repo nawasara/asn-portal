@@ -156,4 +156,36 @@ class ServicesLogicTest extends TestCase
         $this->assertSame('Pegawai', MailboxDirectory::holderName(null, '197405091998072001'));
         $this->assertSame('Admin Kominfo', MailboxDirectory::holderName('Admin Kominfo', 'x'));
     }
+
+    public function test_pgp_events_read_as_kisara_mail_actions_in_the_access_history(): void
+    {
+        $via = fn (string $event, ?string $type = null, ?string $target = null) => \Nawasara\AsnPortal\Http\Api\MailboxController::via($event, $type, $target);
+
+        $this->assertSame('Kisara Mail', $via('mailbox_opened'));
+        $this->assertSame('Webmail', $via('webmail_opened'));
+        $this->assertSame('Kisara Mail · mengambil kunci PGP', $via('mailbox_pgp_event', 'pgp.copy_fetched'));
+        $this->assertSame('Kisara Mail · memberi akses kunci PGP kepada Satrio', $via('mailbox_pgp_event', 'pgp.access_granted', 'Satrio'));
+        $this->assertSame('Kisara Mail · menolak akses kunci PGP untuk pemegang lain', $via('mailbox_pgp_event', 'pgp.access_rejected'));
+        // An unknown type (newer Kisara Mail, older Nawasara) still reads as a key event, never as webmail.
+        $this->assertSame('Kisara Mail · kunci PGP', $via('mailbox_pgp_event', 'pgp.something_new'));
+    }
+
+    public function test_pgp_event_types_are_an_allow_list_matching_kisara_mail(): void
+    {
+        // Kisara Mail PGP FSD FR-12 + pgp.publish_changed (FR-22).
+        $this->assertSame([
+            'pgp.key_added', 'pgp.key_replaced', 'pgp.copy_fetched', 'pgp.copy_passphrase_changed', 'pgp.backup_downloaded',
+            'pgp.access_requested', 'pgp.access_granted', 'pgp.access_rejected', 'pgp.copy_revoked', 'pgp.publish_changed',
+        ], array_keys(\Nawasara\AsnPortal\Support\PgpEvent::TYPES));
+        $this->assertFalse(\Nawasara\AsnPortal\Support\PgpEvent::isKnown('mailbox_opened'));
+    }
+
+    public function test_key_events_share_the_access_history_and_its_retention_but_not_usage_counts(): void
+    {
+        $audit = \Nawasara\AsnPortal\Services\PortalAudit::class;
+        $this->assertSame(['webmail_opened', 'mailbox_opened', 'mailbox_pgp_event'], $audit::MAILBOX_ACCESS_EVENTS);
+        // MailUsage counts openings only; a key fetch is not a visit.
+        $this->assertNotContains('mailbox_pgp_event', $audit::MAILBOX_OPEN_EVENTS);
+        $this->assertSame('Kunci PGP email dinas (Kisara Mail)', \Nawasara\AsnPortal\Support\ActivityPresenter::PORTAL_EVENTS['mailbox_pgp_event'][0]);
+    }
 }

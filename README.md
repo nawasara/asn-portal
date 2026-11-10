@@ -127,6 +127,7 @@ Middleware: `api.staff.identity` → `api.client:<ASN_PORTAL_MAIL_KC_CLIENT>` �
 | GET | `/mail/mailboxes` | `[{address, kind: personal\|shared, role}]` — sumber sama dengan `/account/mailboxes` |
 | GET | `/mail/directory?q=` | buku alamat ASN untuk saran penerima: `[{name, unit, email}]`, maks 10, minimal 2 huruf; hanya mailbox pribadi (1 NIP); **tanpa NIP** |
 | POST | `/mail/mailboxes/{address}/opened` | 204; mencatat `mailbox_opened` (channel `kisara-mail`). 503 `audit_unavailable` bila jejak gagal ditulis — Kisara Mail lalu menolak membuka mailbox bersama |
+| POST | `/mail/mailboxes/{address}/pgp-events` | `{type, fingerprint?, target_sub?}` → 204; mencatat `mailbox_pgp_event` (tipe dari daftar-izin `PgpEvent::TYPES`, 422 bila lain). Aturan sama dengan `opened`: 503 `audit_unavailable` → Kisara Mail menolak aksi kunci untuk mailbox bersama |
 | POST | `/mail/mailboxes/{address}/webmail` | `{url, expires_in}` — jalan keluar ke Roundcube (FR-24); **kode yang sama** dengan tombol webmail Akun Kisara (`MailboxController::webmail`), jadi aturan dan jejak `webmail_opened`-nya identik |
 
 ### Kisara Mail antarserver (token `nws_`)
@@ -136,6 +137,7 @@ Prefiks `/mail-service`, middleware `api.auth` + scope **`asn-portal.mail.holdin
 | Metode | Path | Isi |
 |---|---|---|
 | POST | `/mail-service/holdings` | `{checks: [{sub, nip?, mailbox}]}` (maks 200) → `{data: [{sub, mailbox, held}]}` |
+| POST | `/mail-service/pgp-revoked` | `{mailbox, sub, fingerprint?}` → 204; salinan kunci PGP seseorang yang tak lagi memegang mailbox dihapus Kisara Mail, dicatat atas `sub` orang itu agar pemegang lain tahu |
 
 Dipakai *watcher* pemberitahuan Kisara Mail, yang berjalan saat tak ada yang masuk sehingga tak punya token pengguna. Hanya menjawab ya/tidak untuk pasangan yang ditanyakan — **tidak pernah** mendaftar siapa pemegang sebuah mailbox, jadi token ini tak dapat dipakai menelusuri direktori.
 
@@ -164,6 +166,8 @@ Batas per IP.
 **Kesehatan Kisara Mail ditarik, bukan dikirim.** Tiap 5 menit `KisaraMailHealth` membaca `KISARA_MAIL_METRICS_URL` (prod: `http://10.1.1.35:8080/internal/metrics`) lalu `Alerter::fire` `kisara-mail.imap-failing` (critical) bila > 5 % login IMAP gagal dari minimal 10 percobaan, dan `kisara-mail.unreachable` (warning) bila penghitungnya tak terbaca. Ditarik supaya Kisara Mail tidak butuh kredensial Nawasara untuk melapor; endpoint itu hanya terjangkau dari dalam (port 8080 hanya untuk LXC 140, lewat Cloudflare dijawab 404). URL kosong = mati, sehingga lingkungan dev tak membunyikan alarm tentang server yang tak dapat dijangkaunya. Di bawah 10 percobaan tidak ada putusan: 1 gagal dari 3 = 33 % dan tidak berarti apa-apa.
 
 **Pembukaan mailbox dicatat dari dua jalur dan disimpan 1 tahun.** `webmail_opened` (Roundcube lewat Akun Kisara) dan `mailbox_opened` (Kisara Mail) sama-sama muncul di riwayat akses mailbox bersama (`via`), dihapus otomatis setelah 365 hari oleh jadwal `prune-mailbox-opens` 03.40 WIB. Jejak lain portal tidak ikut dipangkas. `opened` sengaja *gagal* bila jejak tak tertulis (beda dengan `record()` biasa yang menelan galat): pembukaan mailbox bersama tanpa jejak adalah persis yang dicegah riwayat akses.
+
+**Kejadian kunci PGP ikut riwayat akses, bukan hitungan pemakaian.** `mailbox_pgp_event` masuk `MAILBOX_ACCESS_EVENTS` (riwayat + retensi 1 tahun) tetapi **tidak** `MAILBOX_OPEN_EVENTS`, karena `MailUsage` menghitung kunjungan dan mengambil kunci bukan kunjungan. Kunci privat dibuka di browser pemakai dan tidak pernah terlihat server mana pun, jadi yang dicatat adalah `pgp.copy_fetched` (Kisara Mail menyerahkan salinan terkunci), dan labelnya jujur: "mengambil kunci PGP", bukan "membuka".
 
 **Kisara Mail punya grup rute sendiri (`/mail/*`), bukan ikut `/account/*`.** Rute akun dapat mengeluarkan sesi, mengunduh konfigurasi VPN, dan mengganti sandi; menambahkan client Kisara Mail ke `api.client` akun akan memberinya semua itu. Grup `/mail/*` hanya berisi yang dibutuhkan webmail, responsnya daftar-izin (tanpa `instance` WHM dan tanpa PIC lain), dan daftar mailbox-nya memakai `MailboxDirectory` yang sama supaya kedua aplikasi selalu sepakat siapa boleh membuka apa.
 

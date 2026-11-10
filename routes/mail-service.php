@@ -13,3 +13,4 @@ use Nawasara\AsnPortal\Http\Api\MailServiceController;
 */
 
 Route::post('/holdings', [MailServiceController::class, 'holdings'])->name('holdings');
+Route::post('/pgp-revoked', [MailServiceController::class, 'pgpRevoked'])->name('pgp-revoked');

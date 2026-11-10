@@ -4,8 +4,11 @@ namespace Nawasara\AsnPortal\Http\Api;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\Log;
 use Nawasara\AsnPortal\Services\MailboxDirectory;
+use Nawasara\AsnPortal\Services\PortalAudit;
 
 /**
  * Server-to-server checks for Kisara Mail, behind its nws_ token.
@@ -37,6 +40,40 @@ class MailServiceController extends Controller
         $out = self::answer($data['checks'], fn (string $sub, ?string $nip) => $this->mailboxes->forUser($sub, $nip)->pluck('address')->all());
 
         return response()->json(['data' => $out]);
+    }
+
+    /**
+     * POST /mail-service/pgp-revoked — Kisara Mail's periodic holdings check
+     * deleted the PGP key copy of someone who no longer holds a mailbox
+     * (Kisara Mail PGP FSD FR-11). Recorded under that person's sub so the
+     * remaining holders see whose access ended.
+     *
+     * Server-to-server: nobody is signed in, and the person no longer holds
+     * the mailbox, so there is no holder check; the token's scope is the
+     * same holdings scope whose answer caused the revocation.
+     */
+    public function pgpRevoked(Request $request, PortalAudit $audit): Response|JsonResponse
+    {
+        $data = $request->validate([
+            'mailbox' => ['required', 'string', 'email', 'max:320'],
+            'sub' => ['required', 'string', 'max:64'],
+            'fingerprint' => ['nullable', 'string', 'regex:/^[0-9A-Fa-f]{40}$/'],
+        ]);
+
+        $extra = ['mailbox' => strtolower($data['mailbox']), 'channel' => MailController::CHANNEL, 'type' => 'pgp.copy_revoked'];
+        if (! empty($data['fingerprint'])) {
+            $extra['fingerprint'] = strtoupper($data['fingerprint']);
+        }
+
+        try {
+            $audit->recordOrFail(PortalAudit::MAILBOX_PGP_EVENT, $data['sub'], null, $extra);
+        } catch (\Throwable $e) {
+            Log::error('asn-portal: pgp revocation audit write failed', ['mailbox' => $extra['mailbox'], 'error' => class_basename($e)]);
+
+            return response()->json(['error' => ['code' => 'audit_unavailable', 'message' => 'Pencatatan sedang tidak tersedia.']], 503);
+        }
+
+        return response()->noContent();
     }
 
     /**

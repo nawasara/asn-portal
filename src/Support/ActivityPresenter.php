@@ -32,6 +32,7 @@ final class ActivityPresenter
         'other_sessions_revoked' => ['Keluar dari semua perangkat lain', 'change'],
         'webmail_opened' => ['Membuka webmail', 'sign_in'],
         'mailbox_opened' => ['Membuka email di Kisara Mail', 'sign_in'],
+        'mailbox_pgp_event' => ['Kunci PGP email dinas (Kisara Mail)', 'change'],
         'mailbox_password_changed' => ['Kata sandi email dinas diganti', 'change'],
         'mailbox_auto_reply_set' => ['Balasan otomatis email diatur', 'change'],
         'mailbox_auto_reply_cleared' => ['Balasan otomatis email dimatikan', 'change'],

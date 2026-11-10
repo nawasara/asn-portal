@@ -12,6 +12,7 @@ use Nawasara\AsnPortal\Services\SecurityNotifier;
 use Nawasara\AsnPortal\Support\AccountIdentity;
 use Nawasara\AsnPortal\Support\ClientIp;
 use Nawasara\AsnPortal\Support\ForwardingPolicy;
+use Nawasara\AsnPortal\Support\PgpEvent;
 
 /**
  * Official email in the account portal: the personal mailbox and the
@@ -94,21 +95,33 @@ class MailboxController extends Controller
 
         $rows = \Spatie\Activitylog\Models\Activity::query()
             ->where('log_name', PortalAudit::LOG_NAME)
-            ->whereIn('event', PortalAudit::MAILBOX_OPEN_EVENTS)
+            ->whereIn('event', PortalAudit::MAILBOX_ACCESS_EVENTS)
             ->where('properties->mailbox', $mailbox['address'])
             ->where('created_at', '>=', now()->subDays(90))
             ->latest()
             ->limit(100)
             ->get();
 
-        $names = $this->namesBySub($rows->map(fn ($a) => $a->getExtraProperty('sub'))->filter()->unique()->all());
+        $names = $this->namesBySub($rows->flatMap(fn ($a) => [$a->getExtraProperty('sub'), $a->getExtraProperty('target_sub')])->filter()->unique()->all());
 
         return response()->json(['data' => $rows->map(fn ($a) => [
             'at' => $a->created_at->toIso8601String(),
             'by' => $names[$a->getExtraProperty('sub')] ?? 'PIC',
-            // Webmail (Roundcube) or Kisara Mail; both open the same mailbox.
-            'via' => $a->event === 'mailbox_opened' ? 'Kisara Mail' : 'Webmail',
+            'via' => self::via($a->event, $a->getExtraProperty('type'), $names[$a->getExtraProperty('target_sub')] ?? null),
         ])->values()]);
+    }
+
+    /**
+     * How a row reads in the access history: webmail (Roundcube) or Kisara
+     * Mail openings, and what Kisara Mail did with the mailbox's PGP key.
+     */
+    public static function via(string $event, ?string $pgpType = null, ?string $targetName = null): string
+    {
+        return match ($event) {
+            PortalAudit::MAILBOX_PGP_EVENT => PgpEvent::label((string) $pgpType, $targetName),
+            'mailbox_opened' => 'Kisara Mail',
+            default => 'Webmail',
+        };
     }
 
     /** PUT /account/mailboxes/{address}/password — personal mailbox only, fresh login. */

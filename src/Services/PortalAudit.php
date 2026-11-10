@@ -49,12 +49,18 @@ class PortalAudit
 
     public const MAILBOX_OPEN_RETENTION_DAYS = 365;
 
-    /** Delete mailbox-opening rows older than the retention. Returns how many. */
+    /** What Kisara Mail did with a mailbox's OpenPGP key; type in properties (Support\PgpEvent). */
+    public const MAILBOX_PGP_EVENT = 'mailbox_pgp_event';
+
+    /** Everything a shared mailbox's holders see in its access history; same retention. */
+    public const MAILBOX_ACCESS_EVENTS = [...self::MAILBOX_OPEN_EVENTS, self::MAILBOX_PGP_EVENT];
+
+    /** Delete mailbox access rows (openings, key events) older than the retention. Returns how many. */
     public function pruneMailboxOpens(): int
     {
         return Activity::query()
             ->where('log_name', self::LOG_NAME)
-            ->whereIn('event', self::MAILBOX_OPEN_EVENTS)
+            ->whereIn('event', self::MAILBOX_ACCESS_EVENTS)
             ->where('created_at', '<', now()->subDays(self::MAILBOX_OPEN_RETENTION_DAYS))
             ->delete();
     }

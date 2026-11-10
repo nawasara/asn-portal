@@ -12,6 +12,7 @@ use Nawasara\AsnPortal\Services\PortalAudit;
 use Nawasara\AsnPortal\Services\StaffDirectory;
 use Nawasara\AsnPortal\Support\AccountIdentity;
 use Nawasara\AsnPortal\Support\ClientIp;
+use Nawasara\AsnPortal\Support\PgpEvent;
 
 /**
  * Endpoints for Kisara Mail (patra.ponorogo.go.id), mounted at
@@ -67,6 +68,61 @@ class MailController extends Controller
             ]);
         } catch (\Throwable $e) {
             Log::error('asn-portal: mailbox_opened audit write failed', ['mailbox' => $mailbox['address'], 'error' => class_basename($e)]);
+
+            return response()->json(['error' => [
+                'code' => 'audit_unavailable',
+                'message' => 'Pencatatan akses sedang tidak tersedia. Silakan coba lagi.',
+            ]], 503);
+        }
+
+        return response()->noContent();
+    }
+
+    /**
+     * POST /mail/mailboxes/{address}/pgp-events — Kisara Mail is about to do
+     * something with this mailbox's OpenPGP key (Kisara Mail PGP FSD FR-12):
+     * hand out a holder's locked copy, give or refuse another holder access,
+     * replace the key. Shown in the same access history as openings.
+     *
+     * Same rule as `opened`: 503 when the row cannot be written, and Kisara
+     * Mail then refuses the action for a shared mailbox. `target_sub` names
+     * the other holder for grant/refuse; it must hold the mailbox too.
+     */
+    public function pgpEvent(Request $request, string $address): Response|JsonResponse
+    {
+        $data = $request->validate([
+            'type' => ['required', 'string', 'max:64'],
+            'fingerprint' => ['nullable', 'string', 'regex:/^[0-9A-Fa-f]{40}$/'],
+            'target_sub' => ['nullable', 'string', 'max:64'],
+        ]);
+
+        if (! PgpEvent::isKnown($data['type'])) {
+            return response()->json(['error' => ['code' => 'unknown_type', 'message' => 'Jenis kejadian tidak dikenal.']], 422);
+        }
+
+        $mailbox = $this->mailboxes->find($this->sub($request), $this->nip($request), urldecode($address));
+
+        if ($mailbox === null) {
+            return response()->json(['error' => ['code' => 'not_found', 'message' => 'Kotak email tidak ditemukan.']], 404);
+        }
+
+        $extra = [
+            'mailbox' => $mailbox['address'],
+            'kind' => $mailbox['kind'],
+            'channel' => self::CHANNEL,
+            'type' => $data['type'],
+        ];
+        if (! empty($data['fingerprint'])) {
+            $extra['fingerprint'] = strtoupper($data['fingerprint']);
+        }
+        if (in_array($data['type'], PgpEvent::WITH_TARGET, true) && ! empty($data['target_sub'])) {
+            $extra['target_sub'] = $data['target_sub'];
+        }
+
+        try {
+            $this->audit->recordOrFail(PortalAudit::MAILBOX_PGP_EVENT, $this->sub($request), ClientIp::from($request), $extra);
+        } catch (\Throwable $e) {
+            Log::error('asn-portal: mailbox_pgp_event audit write failed', ['mailbox' => $mailbox['address'], 'type' => $data['type'], 'error' => class_basename($e)]);
 
             return response()->json(['error' => [
                 'code' => 'audit_unavailable',
