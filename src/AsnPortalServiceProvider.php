@@ -135,6 +135,13 @@ class AsnPortalServiceProvider extends ServiceProvider
             ->name('nawasara-asn-portal.mail-service.')
             ->group(__DIR__.'/../routes/mail-service.php');
 
+        // SIMAS Hebat's server pushes staff changes (email) with its own
+        // nws_ token. Separate scope from every other caller.
+        Route::prefix($prefix.'/staff')
+            ->middleware(['api', 'api.auth', 'scope:asn-portal.staff.email.write', 'api.log', 'throttle:nawasara-asn-portal-staff'])
+            ->name('nawasara-asn-portal.staff.')
+            ->group(__DIR__.'/../routes/staff.php');
+
         // Registered BEFORE the open public group: same prefix, and these
         // routes need the server token, not just a rate limit.
         Route::prefix($prefix.'/public/mfa-reset')
@@ -167,6 +174,11 @@ class AsnPortalServiceProvider extends ServiceProvider
         $this->app->make(\Nawasara\Api\Support\ScopeRegistry::class)->register(
             'asn-portal.mail.holdings',
             'Periksa apakah ASN masih memegang mailbox (ya/tidak per pasangan). Hanya untuk server Kisara Mail (watcher pemberitahuan).',
+        );
+
+        $this->app->make(\Nawasara\Api\Support\ScopeRegistry::class)->register(
+            'asn-portal.staff.email.write',
+            'Perbarui email akun Kisara ASN berdasarkan NIP, saat email diubah di SIMAS Hebat. Hanya untuk server SIMAS Hebat; wajib IP allow-list, jangan digabung dengan scope lain.',
         );
     }
 
@@ -203,6 +215,11 @@ class AsnPortalServiceProvider extends ServiceProvider
             return Limit::perMinute((int) config('nawasara-asn-portal.mfa_reset_rate_per_minute', 10))
                 ->by('asn-portal-mfa:'.\Nawasara\AsnPortal\Support\ClientIp::from($request));
         });
+
+        // One caller (SIMAS Hebat), one call per email edit made by a person.
+        // Enough for a busy morning of edits, small enough that a leaked
+        // token cannot rewrite thousands of accounts in a few minutes.
+        RateLimiter::for('nawasara-asn-portal-staff', fn (Request $request) => Limit::perMinute((int) config('nawasara-asn-portal.staff_rate_limit_per_minute', 30))->by('asn-portal-staff:'.$request->ip()));
 
         RateLimiter::for('nawasara-asn-portal-public', function (Request $request) {
             return Limit::perMinute((int) config('nawasara-asn-portal.public_rate_limit_per_minute', 120))

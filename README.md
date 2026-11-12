@@ -150,6 +150,16 @@ Middleware: `api.auth` (token `nws_` server portal) → `scope:asn-portal.mfa.re
 | POST | `/public/mfa-reset/request` | `{nip}` → `{channel, destination ter-mask, ttl_minutes}`; 404 bila NIP tak terdaftar, 429 bila batas kirim habis |
 | POST | `/public/mfa-reset/verify` | `{nip, code}` → semua autentikator dihapus, diaudit, dan diberitahukan ke email |
 
+### Email dari SIMAS Hebat (server SIMAS Hebat)
+
+Middleware: `api.auth` (token `nws_` khusus server SIMAS Hebat, IP allow-list wajib) → `scope:asn-portal.staff.email.write` → 30/menit.
+
+| Metode | Path | Isi |
+|---|---|---|
+| PUT | `/staff/{nip}/email` | `{email}` → `{nip, updated}`; `updated:false` bila email sama. 404 `nip_not_found` bila NIP belum pernah login Kisara, 409 `email_in_use` bila email dipakai akun lain, 422 `invalid_nip`/`invalid_email`, 503 `identity_unavailable` |
+
+Panduan untuk tim SIMAS Hebat: `docs/api-superapps/kisara-update-email.md` di repo app.
+
 ### Publik (tanpa login)
 
 Batas per IP.
@@ -162,6 +172,8 @@ Batas per IP.
 | GET | `/public/legal/{privacy\|terms}` | versi berlaku + `upcoming` bila sudah diumumkan; 404 `not_published` bila belum ada |
 
 ## Keputusan yang jangan dibatalkan
+
+**Email akun Kisara didorong SIMAS Hebat, tidak hanya ditarik saat login.** Authenticator Keycloak mengambil email dari jawaban `/auth/` SIMAS Hebat, jadi email hanya berubah saat login *berhasil*. ASN yang tidak bisa login (HP autentikator hilang) lalu meminta reset menerima tautannya di alamat LAMA. `PUT /staff/{nip}/email` dipanggil SIMAS Hebat saat email diubah di sana. Tiga hal sengaja: (1) email yang sudah dipakai akun lain **tidak dipindahkan** (409); realm melarang email ganda, dan memindahkannya berarti menyerahkan tautan reset akun itu ke orang lain; (2) alamat LAMA diberi tahu, karena mengganti email berarti mengganti ke mana tautan reset dikirim, dan pemilik harus tahu bila bukan dia yang mengubahnya; (3) NIP yang belum punya akun Kisara dijawab 404, **bukan dibuatkan akun**: login pertama sudah membuatnya dengan email terbaru.
 
 **Kesehatan Kisara Mail ditarik, bukan dikirim.** Tiap 5 menit `KisaraMailHealth` membaca `KISARA_MAIL_METRICS_URL` (prod: `http://10.1.1.35:8080/internal/metrics`) lalu `Alerter::fire` `kisara-mail.imap-failing` (critical) bila > 5 % login IMAP gagal dari minimal 10 percobaan, dan `kisara-mail.unreachable` (warning) bila penghitungnya tak terbaca. Ditarik supaya Kisara Mail tidak butuh kredensial Nawasara untuk melapor; endpoint itu hanya terjangkau dari dalam (port 8080 hanya untuk LXC 140, lewat Cloudflare dijawab 404). URL kosong = mati, sehingga lingkungan dev tak membunyikan alarm tentang server yang tak dapat dijangkaunya. Di bawah 10 percobaan tidak ada putusan: 1 gagal dari 3 = 33 % dan tidak berarti apa-apa.
 
