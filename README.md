@@ -28,6 +28,7 @@ Bekerja bersama `nawasara/api` (jalur JWT pegawai dan pembatas rute).
 | VPN: akun milik sendiri, unduh `.conf`, ajukan perpanjang | ✅ |
 | Situs OPD: uptime, disk hosting, versi PHP, jumlah temuan keamanan | ✅ |
 | Penyimpanan: kuota email dan hosting | ✅ |
+| Menu 9 titik Kisara dari katalog: `GET /api/v1/kisara/launcher?nip=`, kolom `launcher_*`, disaring peserta pilot Workspace | ✅ `LauncherSeeder` |
 | Jumlah situs mati per minggu, "kosongkan ruang" email | ⏳ |
 | Tiket RAKACA | ⏳ menyusul |
 
@@ -38,6 +39,8 @@ composer require nawasara/asn-portal
 php artisan migrate
 php artisan db:seed --class="Nawasara\AsnPortal\Database\Seeders\PermissionSeeder"
 php artisan db:seed --class="Nawasara\AsnPortal\Database\Seeders\ContentSeeder"
+# isi menu 9 titik (sekali, saat menu mau dinyalakan; aman diulang)
+php artisan db:seed --class="Nawasara\AsnPortal\Database\Seeders\LauncherSeeder"
 ```
 
 `.env`:
@@ -58,6 +61,9 @@ ASN_PORTAL_OTP_TTL_MINUTES=15
 ASN_PORTAL_ACTIVITY_DAYS=90
 ASN_PORTAL_MAIL_FORWARD_DOMAINS=ponorogo.go.id   # tujuan penerusan email yang diizinkan, pisahkan koma
 ASN_PORTAL_BACKUP_CODES=false   # kode cadangan; nyalakan HANYA setelah alur login realm menerimanya (lihat di bawah)
+ASN_PORTAL_LAUNCHER_ALL_APPS_URL=https://asn-account.ponorogo.go.id/apps   # tautan "Semua aplikasi" di menu 9 titik
+ASN_PORTAL_LAUNCHER_WORKSPACE_URL=https://docs.ponorogo.go.id              # dipakai LauncherSeeder untuk Docs/Sheets/Slides/Drive
+ASN_PORTAL_LAUNCHER_RATE_PER_MINUTE=300
 ```
 
 Prasyarat di luar paket ini:
@@ -160,18 +166,55 @@ Middleware: `api.auth` (token `nws_` khusus server SIMAS Hebat, IP allow-list wa
 
 Panduan untuk tim SIMAS Hebat: `docs/api-superapps/kisara-update-email.md` di repo app.
 
+### Menu 9 titik Kisara (server Akun Kisara, Kisara Mail, Kisara Workspace)
+
+Prefix **`/api/v1/kisara`** (bukan `/asn-portal`). Middleware: `api.auth` (token `nws_` milik server produk) → `scope:asn-portal.launcher.read` → `api.log` → 300/menit per IP.
+
+| Metode | Path | Isi |
+|---|---|---|
+| GET | `/launcher?nip={18 digit}` | menu yang sudah disaring untuk ASN itu; 422 `invalid_nip`; `ETag` + `Cache-Control: private, max-age=300`, `If-None-Match` yang sama dijawab 304 |
+
+```json
+{
+  "data": {
+    "sections": [
+      {"id": "workspace", "label": "Kisara Workspace"},
+      {"id": "ecosystem", "label": "Ekosistem Kisara"}
+    ],
+    "items": [
+      {"id": "kisara-docs", "label": "Docs", "name": "Kisara Docs",
+       "url": "https://docs.ponorogo.go.id/docs", "icon": "docs", "icon_url": null,
+       "abbreviation": null, "color": null, "section": "workspace", "order": 10}
+    ],
+    "all_apps": {"label": "Semua aplikasi", "url": "https://asn-account.ponorogo.go.id/apps"}
+  }
+}
+```
+
+`items` sudah terurut (bagian dulu, lalu `order`); produk cukup mengelompokkan per `section`. `icon` adalah **kunci**, bukan alamat: tiap produk memetakannya ke berkas ikonnya sendiri (`docs`, `sheets`, `slides`, `drive`, `kisara-mail`, `akun-kisara`, `portal-asn`, `nawasara`, `gasta`); `icon_url`/`abbreviation`/`color` hanya cadangan untuk kunci yang belum dikenal produk. `id` = slug katalog, stabil. Isi bawaan setelah `LauncherSeeder`: Docs, Sheets, Slides, Drive (hanya peserta pilot), Mail, Akun | Portal ASN, Nawasara, Gasta.
+
+Menambah atau mengubah isi menu: panel **Katalog Aplikasi** → Ubah/Tambah → bagian "Menu 9 titik Kisara" (Bagian, Untuk, Label Menu, Kunci Ikon, Urutan Menu). Aplikasi yang hanya untuk menu dibuat dengan "Tampil di Portal ASN" dimatikan.
+
 ### Publik (tanpa login)
 
 Batas per IP.
 
 | Metode | Path | Isi |
 |---|---|---|
-| GET | `/public/apps` | katalog aplikasi aktif |
+| GET | `/public/apps` | katalog aplikasi aktif yang `show_in_portal` |
 | GET | `/public/icons/{file}` | ikon aplikasi yang diunggah (tanpa throttle, cache setahun) |
 | GET | `/public/help?kind=faq\|sign_in_help` | bantuan, jawaban Markdown |
 | GET | `/public/legal/{privacy\|terms}` | versi berlaku + `upcoming` bila sudah diumumkan; 404 `not_published` bila belum ada |
 
 ## Keputusan yang jangan dibatalkan
+
+**Menu 9 titik memakai katalog yang sama dengan kolom sendiri, bukan tabel kedua dan bukan memangkas katalog** (ADR 0006 di `docs/plan/kisara-workspace`). Katalog adalah daftar aplikasi SSO yang ditampilkan Portal ASN; memangkasnya agar cocok dengan menu akan mengosongkan Portal ASN, dan tabel kedua berarti dua katalog untuk hal yang sama. Maka `launcher_section`/`launcher_sort`/`launcher_audience`/`launcher_label`/`launcher_icon` terpisah dari `sort_order`, dan `show_in_portal` (bawaan `true`, sehingga semua baris lama tetap di tempatnya) membuat Docs atau Drive bisa ada di menu tanpa muncul sebagai kartu di Portal ASN. `LauncherSeeder` sengaja tidak dijalankan migrasi: memasang paket tidak mengubah apa pun sampai seseorang memutuskan menyalakan menu, dan baris yang sudah ada (slug sama, atau URL sama) hanya diisi kolom menunya, sekali, tanpa menimpa suntingan admin.
+
+**Aplikasi pilot ditentukan `AccessDecider` milik `nawasara/workspace`, dan tertutup bila ragu.** Aturan yang sama dipakai API akses Workspace dan grup Keycloak `workspace-pilot` (ADR 0004), jadi menu tidak pernah menawarkan Docs kepada orang yang pintunya lalu menolak; kill switch pun menyembunyikannya. `nawasara/workspace` bukan dependensi paket ini: bila kelasnya tidak ada, atau decider melempar galat, item `workspace-pilot` disembunyikan (`WorkspacePilot`). Ikon Docs yang hilang hanya kurang nyaman; ikon yang membawa setiap ASN ke halaman "sedang uji coba" adalah bug yang terlihat. Nilai `launcher_audience` yang tak dikenal juga tidak ditampilkan.
+
+**Jawaban menu hanya punya dua varian, dan dibuat ramah cache.** Isinya tergantung katalog dan satu bit (peserta atau bukan), tidak memuat apa pun tentang orangnya. Katalog di-cache 5 menit di Nawasara dan dibersihkan setiap kali baris katalog disimpan atau dihapus; `ETag` adalah hash isi, sehingga produk yang mengirim `If-None-Match` mendapat 304. Produk tetap wajib menyimpan salinan terakhir yang berhasil (FR-03 AC-4): Nawasara mati tidak boleh menghilangkan menu.
+
+**`icon` dikirim sebagai kunci, bukan URL.** Ketiga produk sudah membawa ikon merek Kisara sebagai berkas lokal (`/icons/eco/*.svg`) dengan ukuran yang disamakan; mengirim URL gambar dari panel akan membuat menu bergantung pada domain Nawasara untuk setiap gambar dan mengizinkan ikon yang ukurannya tak seragam.
 
 **Email akun Kisara didorong SIMAS Hebat, tidak hanya ditarik saat login.** Authenticator Keycloak mengambil email dari jawaban `/auth/` SIMAS Hebat, jadi email hanya berubah saat login *berhasil*. ASN yang tidak bisa login (HP autentikator hilang) lalu meminta reset menerima tautannya di alamat LAMA. `PUT /staff/{nip}/email` dipanggil SIMAS Hebat saat email diubah di sana. Tiga hal sengaja: (1) email yang sudah dipakai akun lain **tidak dipindahkan** (409); realm melarang email ganda, dan memindahkannya berarti menyerahkan tautan reset akun itu ke orang lain; (2) alamat LAMA diberi tahu, karena mengganti email berarti mengganti ke mana tautan reset dikirim, dan pemilik harus tahu bila bukan dia yang mengubahnya; (3) NIP yang belum punya akun Kisara dijawab 404, **bukan dibuatkan akun**: login pertama sudah membuatnya dengan email terbaru.
 

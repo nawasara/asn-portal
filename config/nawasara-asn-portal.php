@@ -112,4 +112,23 @@ return [
         ],
     ],
 
+    // The 9-dot launcher (GET /api/v1/kisara/launcher, ADR 0006). Entries
+    // themselves live in the catalog (launcher_* columns); only the section
+    // titles and the "Semua aplikasi" link are set here.
+    'launcher' => [
+        'sections' => [
+            'workspace' => 'Kisara Workspace',
+            'ecosystem' => 'Ekosistem Kisara',
+        ],
+        // Kisara Workspace host (ADR 0002): LauncherSeeder builds the Docs,
+        // Sheets, Slides and Drive links from it.
+        'workspace_url' => env('ASN_PORTAL_LAUNCHER_WORKSPACE_URL', 'https://docs.ponorogo.go.id'),
+        'all_apps_label' => 'Semua aplikasi',
+        // Akun Kisara's full app list, the one place every SSO app is shown.
+        'all_apps_url' => env('ASN_PORTAL_LAUNCHER_ALL_APPS_URL', 'https://asn-account.ponorogo.go.id/apps'),
+        // Calls per minute per caller IP. Callers cache for 5 minutes, so
+        // a normal day is a handful per minute per product.
+        'rate_limit_per_minute' => (int) env('ASN_PORTAL_LAUNCHER_RATE_PER_MINUTE', 300),
+    ],
+
 ];

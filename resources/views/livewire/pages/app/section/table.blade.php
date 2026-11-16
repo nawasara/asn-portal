@@ -1,7 +1,7 @@
 <div>
     <x-nawasara-ui::page-header
         title="Katalog Aplikasi"
-        description="Aplikasi yang tampil di Portal ASN. Perubahan langsung berlaku, tidak menunggu rilis portal."
+        description="Aplikasi yang tampil di Portal ASN dan di menu 9 titik Kisara (Akun, Mail, Workspace). Perubahan langsung berlaku, menu 9 titik paling lambat 5 menit."
         :count="count($this->rows)">
         @can('asn-portal.content.manage')
             <x-nawasara-ui::button color="primary" wire:click="create">
@@ -62,10 +62,18 @@
                                 <span class="text-sm text-neutral-800 dark:text-neutral-100">{{ $row->name }}</span>
                                 <p class="mt-0.5 truncate text-xs text-neutral-500 dark:text-neutral-400">{{ $row->url }}</p>
                                 {{-- Status di bawah nama, bukan kolom sendiri: terlihat tanpa menggulir ke kanan. --}}
-                                <div class="mt-1">
+                                <div class="mt-1 flex flex-wrap gap-1">
                                     <x-nawasara-ui::badge :color="$row->is_active ? 'success' : 'neutral'">
                                         {{ $row->is_active ? 'Aktif' : 'Nonaktif' }}
                                     </x-nawasara-ui::badge>
+                                    @unless ($row->show_in_portal)
+                                        <x-nawasara-ui::badge color="neutral">Tidak di Portal</x-nawasara-ui::badge>
+                                    @endunless
+                                    @if ($row->launcher_section)
+                                        <x-nawasara-ui::badge color="info">
+                                            Menu 9 titik{{ $row->launcher_audience === \Nawasara\AsnPortal\Models\PortalApp::AUDIENCE_WORKSPACE_PILOT ? ': pilot' : '' }}
+                                        </x-nawasara-ui::badge>
+                                    @endif
                                 </div>
                             </div>
                         </div>
@@ -186,6 +194,39 @@
             <div>
                 <x-nawasara-ui::form.input type="text" label="Alamat Ikon" wire:model="icon_url" placeholder="https://..." />
                 <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Terisi sendiri setelah ikon diunggah dan disimpan. Bisa juga diisi alamat gambar dari tempat lain.</p>
+            </div>
+
+            <div>
+                <x-nawasara-ui::form.checkbox wire:model="show_in_portal" label="Tampil di Portal ASN" />
+                <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Matikan untuk aplikasi yang hanya ada di menu 9 titik, mis. Docs atau Drive.</p>
+            </div>
+
+            <div class="space-y-4 border-t border-neutral-200 pt-4 dark:border-neutral-700">
+                <p class="text-sm font-semibold text-neutral-800 dark:text-neutral-100">Menu 9 titik Kisara</p>
+
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <div>
+                        <x-nawasara-ui::form.select label="Bagian" wire:model="launcher_section"
+                            :options="$this->launcherSectionOptions()" placeholder="Tidak tampil di menu" />
+                    </div>
+                    <div>
+                        <x-nawasara-ui::form.select label="Untuk" wire:model="launcher_audience"
+                            :options="$this->launcherAudienceOptions()" placeholder="" />
+                    </div>
+                </div>
+
+                <div class="grid gap-4 sm:grid-cols-3">
+                    <div>
+                        <x-nawasara-ui::form.input type="text" label="Label Menu" wire:model="launcher_label" placeholder="Docs" />
+                    </div>
+                    <div>
+                        <x-nawasara-ui::form.input type="text" label="Kunci Ikon" wire:model="launcher_icon" placeholder="docs" />
+                    </div>
+                    <div>
+                        <x-nawasara-ui::form.input type="number" label="Urutan Menu" wire:model="launcher_sort" />
+                    </div>
+                </div>
+                <p class="text-xs text-neutral-500 dark:text-neutral-400">Label kosong berarti memakai nama. Kunci ikon dipetakan oleh tiap produk ke berkas ikonnya sendiri. Urutan menu terpisah dari urutan Portal ASN.</p>
             </div>
         </div>
 

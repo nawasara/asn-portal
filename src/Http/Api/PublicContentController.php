@@ -23,7 +23,7 @@ class PublicContentController extends Controller
     public function apps(): JsonResponse
     {
         return response()->json([
-            'data' => PortalAppResource::collection(PortalApp::query()->active()->get()),
+            'data' => PortalAppResource::collection(PortalApp::query()->inPortal()->get()),
         ]);
     }
 

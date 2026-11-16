@@ -63,8 +63,32 @@ class Table extends Component
     public ?string $icon_url = null;
     public int $sort_order = 0;
 
+    // Portal ASN vs 9-dot launcher (ADR 0006): separate switches, so a row
+    // can be in one, the other, or both.
+    public bool $show_in_portal = true;
+    public ?string $launcher_section = null;
+    public int $launcher_sort = 0;
+    public string $launcher_audience = PortalApp::AUDIENCE_ALL;
+    public ?string $launcher_label = null;
+    public ?string $launcher_icon = null;
+
     /** @var \Livewire\Features\SupportFileUploads\TemporaryUploadedFile|null */
     public $icon = null;
+
+    /** @return array<string, string> */
+    public function launcherSectionOptions(): array
+    {
+        return config('nawasara-asn-portal.launcher.sections', []);
+    }
+
+    /** @return array<string, string> */
+    public function launcherAudienceOptions(): array
+    {
+        return [
+            PortalApp::AUDIENCE_ALL => 'Semua ASN',
+            PortalApp::AUDIENCE_WORKSPACE_PILOT => 'Hanya peserta pilot Workspace',
+        ];
+    }
 
     #[Computed]
     public function rows()
@@ -105,6 +129,8 @@ class Table extends Component
         $this->fill($app->only([
             'slug', 'name', 'description', 'url', 'keycloak_client_id', 'category',
             'abbreviation', 'color', 'icon_url', 'sort_order',
+            'show_in_portal', 'launcher_section', 'launcher_sort', 'launcher_audience',
+            'launcher_label', 'launcher_icon',
         ]));
 
         $this->dispatch('modal-open:portal-app-form');
@@ -114,7 +140,8 @@ class Table extends Component
     {
         $this->authorize('asn-portal.content.manage');
 
-        foreach (['description', 'keycloak_client_id', 'category', 'abbreviation', 'color', 'icon_url'] as $field) {
+        foreach (['description', 'keycloak_client_id', 'category', 'abbreviation', 'color', 'icon_url',
+            'launcher_section', 'launcher_label', 'launcher_icon'] as $field) {
             $this->{$field} = $this->{$field} === null || trim($this->{$field}) === '' ? null : trim($this->{$field});
         }
 
@@ -138,11 +165,19 @@ class Table extends Component
                 : ['nullable', 'url:https', 'max:500'],
             'icon' => self::ICON_RULES,
             'sort_order' => ['integer', 'min:0', 'max:99999'],
+            'show_in_portal' => ['boolean'],
+            'launcher_section' => ['nullable', Rule::in(PortalApp::LAUNCHER_SECTIONS)],
+            'launcher_sort' => ['integer', 'min:0', 'max:99999'],
+            'launcher_audience' => ['required', Rule::in(PortalApp::LAUNCHER_AUDIENCES)],
+            'launcher_label' => ['nullable', 'string', 'max:40'],
+            // A key each product maps to its own icon file, not an address.
+            'launcher_icon' => ['nullable', 'string', 'max:64', 'regex:/^[a-z0-9]+(-[a-z0-9]+)*$/'],
         ], [
             'slug.regex' => 'Slug hanya huruf kecil, angka, dan tanda hubung, mis. satu-data.',
             'url.url' => 'Alamat harus diawali https://.',
             'icon_url.url' => 'Alamat ikon harus diawali https://.',
             'color.regex' => 'Warna ditulis sebagai kode hex enam digit, mis. #0f8b8d.',
+            'launcher_icon.regex' => 'Kunci ikon hanya huruf kecil, angka, dan tanda hubung, mis. kisara-mail.',
         ] + self::ICON_MESSAGES);
         unset($data['icon']);
 
@@ -280,6 +315,8 @@ class Table extends Component
         $this->reset([
             'editingId', 'slug', 'name', 'description', 'url', 'keycloak_client_id', 'category',
             'abbreviation', 'color', 'icon_url', 'sort_order', 'icon',
+            'show_in_portal', 'launcher_section', 'launcher_sort', 'launcher_audience',
+            'launcher_label', 'launcher_icon',
         ]);
         $this->resetErrorBag();
     }

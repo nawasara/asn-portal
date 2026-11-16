@@ -142,6 +142,13 @@ class AsnPortalServiceProvider extends ServiceProvider
             ->name('nawasara-asn-portal.staff.')
             ->group(__DIR__.'/../routes/staff.php');
 
+        // Shared Kisara endpoints (9-dot launcher), outside /asn-portal: the
+        // three products ask for "the Kisara menu", not for a portal page.
+        Route::prefix((string) config('nawasara-api.route.prefix', 'api/v1').'/kisara')
+            ->middleware(['api', 'api.auth', 'scope:asn-portal.launcher.read', 'api.log', 'throttle:nawasara-asn-portal-launcher'])
+            ->name('nawasara-asn-portal.kisara.')
+            ->group(__DIR__.'/../routes/kisara.php');
+
         // Registered BEFORE the open public group: same prefix, and these
         // routes need the server token, not just a rate limit.
         Route::prefix($prefix.'/public/mfa-reset')
@@ -174,6 +181,11 @@ class AsnPortalServiceProvider extends ServiceProvider
         $this->app->make(\Nawasara\Api\Support\ScopeRegistry::class)->register(
             'asn-portal.mail.holdings',
             'Periksa apakah ASN masih memegang mailbox (ya/tidak per pasangan). Hanya untuk server Kisara Mail (watcher pemberitahuan).',
+        );
+
+        $this->app->make(\Nawasara\Api\Support\ScopeRegistry::class)->register(
+            'asn-portal.launcher.read',
+            'Daftar menu 9 titik Kisara untuk satu ASN (per NIP), sudah disaring peserta pilot Workspace. Untuk server Akun Kisara, Kisara Mail, dan Kisara Workspace.',
         );
 
         $this->app->make(\Nawasara\Api\Support\ScopeRegistry::class)->register(
@@ -220,6 +232,8 @@ class AsnPortalServiceProvider extends ServiceProvider
         // Enough for a busy morning of edits, small enough that a leaked
         // token cannot rewrite thousands of accounts in a few minutes.
         RateLimiter::for('nawasara-asn-portal-staff', fn (Request $request) => Limit::perMinute((int) config('nawasara-asn-portal.staff_rate_limit_per_minute', 30))->by('asn-portal-staff:'.$request->ip()));
+
+        RateLimiter::for('nawasara-asn-portal-launcher', fn (Request $request) => Limit::perMinute((int) config('nawasara-asn-portal.launcher.rate_limit_per_minute', 300))->by('asn-portal-launcher:'.$request->ip()));
 
         RateLimiter::for('nawasara-asn-portal-public', function (Request $request) {
             return Limit::perMinute((int) config('nawasara-asn-portal.public_rate_limit_per_minute', 120))
