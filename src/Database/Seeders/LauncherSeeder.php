@@ -53,16 +53,19 @@ class LauncherSeeder extends Seeder
     {
         $ws = PortalApp::SECTION_WORKSPACE;
         $eco = PortalApp::SECTION_ECOSYSTEM;
-        $pilot = PortalApp::AUDIENCE_WORKSPACE_PILOT;
+        // Audience = app key of Akses Layanan Kisara: shown only to whoever
+        // may use that app, so the menu never offers a door that refuses.
+        $workspaceAudience = 'workspace';
+        $mailAudience = 'mail';
         $all = PortalApp::AUDIENCE_ALL;
         $docs = rtrim((string) config('nawasara-asn-portal.launcher.workspace_url', 'https://docs.ponorogo.go.id'), '/');
 
         return [
-            ['slug' => 'kisara-docs', 'name' => 'Kisara Docs', 'url' => $docs.'/docs', 'launcher_section' => $ws, 'launcher_sort' => 10, 'launcher_audience' => $pilot, 'launcher_label' => 'Docs', 'launcher_icon' => 'docs'],
-            ['slug' => 'kisara-sheets', 'name' => 'Kisara Sheets', 'url' => $docs.'/sheets', 'launcher_section' => $ws, 'launcher_sort' => 20, 'launcher_audience' => $pilot, 'launcher_label' => 'Sheets', 'launcher_icon' => 'sheets'],
-            ['slug' => 'kisara-slides', 'name' => 'Kisara Slides', 'url' => $docs.'/slides', 'launcher_section' => $ws, 'launcher_sort' => 30, 'launcher_audience' => $pilot, 'launcher_label' => 'Slides', 'launcher_icon' => 'slides'],
-            ['slug' => 'kisara-drive', 'name' => 'Kisara Drive', 'url' => $docs.'/drive', 'launcher_section' => $ws, 'launcher_sort' => 40, 'launcher_audience' => $pilot, 'launcher_label' => 'Drive', 'launcher_icon' => 'drive'],
-            ['slug' => 'kisara-mail', 'name' => 'Kisara Mail', 'url' => 'https://patra.ponorogo.go.id', 'launcher_section' => $ws, 'launcher_sort' => 50, 'launcher_audience' => $all, 'launcher_label' => 'Mail', 'launcher_icon' => 'kisara-mail'],
+            ['slug' => 'kisara-docs', 'name' => 'Kisara Docs', 'url' => $docs.'/docs', 'launcher_section' => $ws, 'launcher_sort' => 10, 'launcher_audience' => $workspaceAudience, 'launcher_label' => 'Docs', 'launcher_icon' => 'docs'],
+            ['slug' => 'kisara-sheets', 'name' => 'Kisara Sheets', 'url' => $docs.'/sheets', 'launcher_section' => $ws, 'launcher_sort' => 20, 'launcher_audience' => $workspaceAudience, 'launcher_label' => 'Sheets', 'launcher_icon' => 'sheets'],
+            ['slug' => 'kisara-slides', 'name' => 'Kisara Slides', 'url' => $docs.'/slides', 'launcher_section' => $ws, 'launcher_sort' => 30, 'launcher_audience' => $workspaceAudience, 'launcher_label' => 'Slides', 'launcher_icon' => 'slides'],
+            ['slug' => 'kisara-drive', 'name' => 'Kisara Drive', 'url' => $docs.'/drive', 'launcher_section' => $ws, 'launcher_sort' => 40, 'launcher_audience' => $workspaceAudience, 'launcher_label' => 'Drive', 'launcher_icon' => 'drive'],
+            ['slug' => 'kisara-mail', 'name' => 'Kisara Mail', 'url' => 'https://patra.ponorogo.go.id', 'launcher_section' => $ws, 'launcher_sort' => 50, 'launcher_audience' => $mailAudience, 'launcher_label' => 'Mail', 'launcher_icon' => 'kisara-mail'],
             ['slug' => 'akun-kisara', 'name' => 'Akun Kisara', 'url' => 'https://asn-account.ponorogo.go.id', 'launcher_section' => $ws, 'launcher_sort' => 60, 'launcher_audience' => $all, 'launcher_label' => 'Akun', 'launcher_icon' => 'akun-kisara'],
             ['slug' => 'portal-asn', 'name' => 'Portal ASN', 'url' => 'https://asn.ponorogo.go.id', 'launcher_section' => $eco, 'launcher_sort' => 10, 'launcher_audience' => $all, 'launcher_label' => 'Portal ASN', 'launcher_icon' => 'portal-asn'],
             ['slug' => 'nawasara', 'name' => 'Nawasara', 'url' => 'https://nawasara.ponorogo.go.id', 'launcher_section' => $eco, 'launcher_sort' => 20, 'launcher_audience' => $all, 'launcher_label' => 'Nawasara', 'launcher_icon' => 'nawasara'],

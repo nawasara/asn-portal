@@ -20,7 +20,10 @@ return [
         'icon' => 'lucide-id-card',
         'group' => 'Layanan',
         'url' => '',
-        'permission' => 'asn-portal.content.view',
+        // No workspace-level permission: each submenu has its own, so staff
+        // who may only manage Akses Layanan Kisara (or only read usage) still
+        // see this workspace (WorkspaceManager::accessible).
+        'permission' => null,
         'submenu' => [
             [
                 'section' => 'Konten Portal',
@@ -46,6 +49,18 @@ return [
                 'icon' => 'lucide-scale',
                 'url' => url($prefix.'/legal'),
                 'permission' => 'asn-portal.content.view',
+                'navigate' => true,
+            ],
+            [
+                'section' => 'Layanan Kisara',
+                'icon' => 'lucide-key-round',
+                'permission' => 'asn-portal.access.view',
+            ],
+            [
+                'label' => 'Akses Layanan Kisara',
+                'icon' => 'lucide-user-check',
+                'url' => url($prefix.'/access'),
+                'permission' => 'asn-portal.access.view',
                 'navigate' => true,
             ],
             [

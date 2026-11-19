@@ -28,6 +28,7 @@ class AsnPortalServiceProvider extends ServiceProvider
         $this->mergeConfigFrom(__DIR__.'/../config/nawasara-asn-portal.php', 'nawasara-asn-portal');
 
         $this->app->singleton(Services\KeycloakDirectory::class);
+        $this->app->singleton(Services\KisaraAccess::class);
 
         // Codes are HMAC'd with the app key, so a cache dump alone does not
         // reveal them.
@@ -144,8 +145,9 @@ class AsnPortalServiceProvider extends ServiceProvider
 
         // Shared Kisara endpoints (9-dot launcher), outside /asn-portal: the
         // three products ask for "the Kisara menu", not for a portal page.
+        // Scope and rate limit are set per route in routes/kisara.php.
         Route::prefix((string) config('nawasara-api.route.prefix', 'api/v1').'/kisara')
-            ->middleware(['api', 'api.auth', 'scope:asn-portal.launcher.read', 'api.log', 'throttle:nawasara-asn-portal-launcher'])
+            ->middleware(['api', 'api.auth', 'api.log'])
             ->name('nawasara-asn-portal.kisara.')
             ->group(__DIR__.'/../routes/kisara.php');
 
@@ -185,7 +187,12 @@ class AsnPortalServiceProvider extends ServiceProvider
 
         $this->app->make(\Nawasara\Api\Support\ScopeRegistry::class)->register(
             'asn-portal.launcher.read',
-            'Daftar menu 9 titik Kisara untuk satu ASN (per NIP), sudah disaring peserta pilot Workspace. Untuk server Akun Kisara, Kisara Mail, dan Kisara Workspace.',
+            'Daftar menu 9 titik Kisara untuk satu ASN (per NIP), sudah disaring Akses Layanan Kisara. Untuk server Akun Kisara, Kisara Mail, dan Kisara Workspace.',
+        );
+
+        $this->app->make(\Nawasara\Api\Support\ScopeRegistry::class)->register(
+            'asn-portal.access.read',
+            'Apakah seorang ASN (per NIP) boleh memakai satu layanan Kisara (?app=mail, workspace, ...) saat ini, dan tahap pilotnya. Untuk server layanan Kisara (Kisara Mail). Read-only, tanpa data pribadi.',
         );
 
         $this->app->make(\Nawasara\Api\Support\ScopeRegistry::class)->register(
@@ -234,6 +241,10 @@ class AsnPortalServiceProvider extends ServiceProvider
         RateLimiter::for('nawasara-asn-portal-staff', fn (Request $request) => Limit::perMinute((int) config('nawasara-asn-portal.staff_rate_limit_per_minute', 30))->by('asn-portal-staff:'.$request->ip()));
 
         RateLimiter::for('nawasara-asn-portal-launcher', fn (Request $request) => Limit::perMinute((int) config('nawasara-asn-portal.launcher.rate_limit_per_minute', 300))->by('asn-portal-launcher:'.$request->ip()));
+
+        // Callers are app servers (Kisara Mail first), each asking about
+        // every signed-in person about once a minute: limited per caller IP.
+        RateLimiter::for('nawasara-asn-portal-access', fn (Request $request) => Limit::perMinute((int) config('nawasara-asn-portal.access.rate_limit_per_minute', 600))->by('asn-portal-access:'.$request->ip()));
 
         RateLimiter::for('nawasara-asn-portal-public', function (Request $request) {
             return Limit::perMinute((int) config('nawasara-asn-portal.public_rate_limit_per_minute', 120))

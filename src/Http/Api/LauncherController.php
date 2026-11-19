@@ -9,7 +9,8 @@ use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Cache;
 use Nawasara\AsnPortal\Http\Resources\LauncherItemResource;
 use Nawasara\AsnPortal\Models\PortalApp;
-use Nawasara\AsnPortal\Support\WorkspacePilot;
+use Illuminate\Support\Facades\Log;
+use Nawasara\AsnPortal\Services\KisaraAccess;
 
 /**
  * GET /api/v1/kisara/launcher?nip=   scope: asn-portal.launcher.read
@@ -18,14 +19,21 @@ use Nawasara\AsnPortal\Support\WorkspacePilot;
  * filtered for one ASN (FR-03, ADR 0006). Called by those products' servers,
  * never by a browser; they keep a 5-minute cache and the last good copy.
  *
- * Only two answers exist per catalog version: with or without the pilot
- * apps. The ETag is the hash of the body, so a caller revalidating with
- * If-None-Match gets a 304 until the catalog or the person's pilot status
- * changes.
+ * An item whose audience is an app key (`workspace`, `mail`) is shown only
+ * to whoever Akses Layanan Kisara lets use that app (KisaraAccess), the same
+ * rule that app's own door applies, so the menu never offers an app that
+ * then refuses the person. Fail closed: any error while asking hides the
+ * item. A missing Docs icon is a small annoyance; an icon that leads to
+ * "sedang uji coba" for every ASN is a visible bug.
+ *
+ * Answers differ only by which apps the person may use, so callers share a
+ * handful of variants per catalog version. The ETag is the hash of the body,
+ * so a caller revalidating with If-None-Match gets a 304 until the catalog
+ * or the person's access changes.
  */
 class LauncherController extends Controller
 {
-    public function index(Request $request, WorkspacePilot $pilot): JsonResponse|Response
+    public function index(Request $request, KisaraAccess $access): JsonResponse|Response
     {
         $nip = (string) $request->query('nip', '');
 
@@ -35,12 +43,26 @@ class LauncherController extends Controller
             ], 422);
         }
 
-        $isPilot = $pilot->allows($nip);
+        $allowed = [];
+        $may = function (?string $app) use ($access, $nip, &$allowed): bool {
+            if ($app === null) {
+                return true;
+            }
+            if (! array_key_exists($app, $allowed)) {
+                try {
+                    $allowed[$app] = $access->allows($app, $nip)['allowed'] === true;
+                } catch (\Throwable $e) {
+                    Log::warning('asn-portal: launcher access check failed, hiding the app', ['app' => $app, 'error' => $e->getMessage()]);
+                    $allowed[$app] = false;
+                }
+            }
+
+            return $allowed[$app];
+        };
 
         $items = array_values(array_filter(
             $this->catalog(),
-            fn (array $item) => $item['audience'] === PortalApp::AUDIENCE_ALL
-                || ($item['audience'] === PortalApp::AUDIENCE_WORKSPACE_PILOT && $isPilot),
+            fn (array $item) => $may(PortalApp::audienceApp($item['audience'])),
         ));
 
         $sections = config('nawasara-asn-portal.launcher.sections', []);
@@ -70,7 +92,8 @@ class LauncherController extends Controller
     /**
      * Every launcher entry with its audience, in menu order (section first,
      * then launcher_sort). Cached; PortalApp clears it on save and delete.
-     * An unknown audience value is kept out entirely: fail closed.
+     * An unknown audience value (not `all`, not an app key in config) is
+     * kept out entirely: fail closed.
      *
      * @return array<int, array{audience: string, resource: array<string, mixed>}>
      */
@@ -80,7 +103,7 @@ class LauncherController extends Controller
             $rank = array_flip(PortalApp::LAUNCHER_SECTIONS);
 
             return PortalApp::query()->inLauncher()->get()
-                ->filter(fn (PortalApp $app) => in_array($app->launcher_audience, PortalApp::LAUNCHER_AUDIENCES, true))
+                ->filter(fn (PortalApp $app) => in_array(PortalApp::audienceApp((string) $app->launcher_audience) ?? PortalApp::AUDIENCE_ALL, PortalApp::launcherAudiences(), true))
                 ->sortBy(fn (PortalApp $app) => [$rank[$app->launcher_section], $app->launcher_sort, $app->name])
                 ->map(fn (PortalApp $app) => [
                     'audience' => $app->launcher_audience,

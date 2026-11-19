@@ -112,6 +112,50 @@ return [
         ],
     ],
 
+    /*
+    | Akses Layanan Kisara: who may use which Kisara app during the pilot
+    | (KisaraAccess, admin page "Akses Layanan Kisara", GET /api/v1/kisara/access/{nip}).
+    |
+    | `apps` is the registry of app keys. A new Kisara tool is one entry here:
+    | its key (lowercase, dashes) is what the API's `?app=` and the launcher's
+    | audience use. Never name an app `all` (that is the launcher audience for
+    | everyone). `opd_override` shows the "OPD (koreksi SIMAS)" field for that
+    | app; only Kisara Workspace reads it (Folder OPD).
+    |
+    | Removing an entry does not delete its rows: the app simply stops being
+    | asked about, and the API answers 422 unknown_app for it.
+    */
+    'access' => [
+        'apps' => [
+            'workspace' => [
+                'label' => 'Kisara Workspace',
+                'short' => 'Workspace',
+                'description' => 'Docs, Sheets, Slides, dan Drive',
+                'opd_override' => true,
+            ],
+            'mail' => [
+                'label' => 'Kisara Mail',
+                'short' => 'Mail',
+                'description' => 'patra.ponorogo.go.id',
+                'opd_override' => false,
+            ],
+        ],
+        // Pilot stages, shared by every app. Stage 3 is not a row: it is what
+        // the API reports when an app is open to every ASN.
+        'stages' => [
+            0 => 'Tahap 0: pemilik',
+            1 => 'Tahap 1: Diskominfo',
+            2 => 'Tahap 2: OPD pilot',
+        ],
+        // How long the kill switch / open-to-all flags are cached. Callers
+        // add their own cache (Kisara Mail and Workspace Web: 60 s), so a
+        // change reaches every door within about 90 seconds.
+        'settings_cache_seconds' => 30,
+        // Calls per minute per caller IP on GET /kisara/access/{nip}. Kisara
+        // Mail asks once per signed-in person per minute.
+        'rate_limit_per_minute' => (int) env('ASN_PORTAL_ACCESS_RATE_PER_MINUTE', 600),
+    ],
+
     // The 9-dot launcher (GET /api/v1/kisara/launcher, ADR 0006). Entries
     // themselves live in the catalog (launcher_* columns); only the section
     // titles and the "Semua aplikasi" link are set here.

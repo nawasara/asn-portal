@@ -23,6 +23,12 @@ class PermissionSeeder extends Seeder
 
             // Weekly mailbox openings per channel (Roundcube vs Kisara Mail).
             'asn-portal.usage.view',
+
+            // Akses Layanan Kisara: who may use which Kisara app during the
+            // pilot. manage = add, change, deactivate, delete (sudo), and the
+            // per-app kill switch / open-to-all.
+            'asn-portal.access.view',
+            'asn-portal.access.manage',
         ];
 
         foreach ($permissions as $permission) {

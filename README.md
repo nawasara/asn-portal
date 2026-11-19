@@ -28,7 +28,8 @@ Bekerja bersama `nawasara/api` (jalur JWT pegawai dan pembatas rute).
 | VPN: akun milik sendiri, unduh `.conf`, ajukan perpanjang | ✅ |
 | Situs OPD: uptime, disk hosting, versi PHP, jumlah temuan keamanan | ✅ |
 | Penyimpanan: kuota email dan hosting | ✅ |
-| Menu 9 titik Kisara dari katalog: `GET /api/v1/kisara/launcher?nip=`, kolom `launcher_*`, disaring peserta pilot Workspace | ✅ `LauncherSeeder` |
+| Menu 9 titik Kisara dari katalog: `GET /api/v1/kisara/launcher?nip=`, kolom `launcher_*`, disaring Akses Layanan Kisara | ✅ `LauncherSeeder` |
+| Akses Layanan Kisara: satu daftar siapa boleh memakai layanan Kisara mana (Workspace, Mail, layanan berikutnya), tahap + kill switch + "buka untuk semua" per layanan, halaman panel, `GET /api/v1/kisara/access/{nip}?app=` | ✅ |
 | Jumlah situs mati per minggu, "kosongkan ruang" email | ⏳ |
 | Tiket RAKACA | ⏳ menyusul |
 
@@ -38,6 +39,9 @@ Bekerja bersama `nawasara/api` (jalur JWT pegawai dan pembatas rute).
 composer require nawasara/asn-portal
 php artisan migrate
 php artisan db:seed --class="Nawasara\AsnPortal\Database\Seeders\PermissionSeeder"
+# migrate di atas sudah menyalin daftar pilot Workspace ke Akses Layanan Kisara;
+# boleh diulang kapan saja, tidak menimpa apa pun:
+php artisan db:seed --class="Nawasara\AsnPortal\Database\Seeders\KisaraAccessImportSeeder"
 php artisan db:seed --class="Nawasara\AsnPortal\Database\Seeders\ContentSeeder"
 # isi menu 9 titik (sekali, saat menu mau dinyalakan; aman diulang)
 php artisan db:seed --class="Nawasara\AsnPortal\Database\Seeders\LauncherSeeder"
@@ -191,9 +195,27 @@ Prefix **`/api/v1/kisara`** (bukan `/asn-portal`). Middleware: `api.auth` (token
 }
 ```
 
-`items` sudah terurut (bagian dulu, lalu `order`); produk cukup mengelompokkan per `section`. `icon` adalah **kunci**, bukan alamat: tiap produk memetakannya ke berkas ikonnya sendiri (`docs`, `sheets`, `slides`, `drive`, `kisara-mail`, `akun-kisara`, `portal-asn`, `nawasara`, `gasta`); `icon_url`/`abbreviation`/`color` hanya cadangan untuk kunci yang belum dikenal produk. `id` = slug katalog, stabil. Isi bawaan setelah `LauncherSeeder`: Docs, Sheets, Slides, Drive (hanya peserta pilot), Mail, Akun | Portal ASN, Nawasara, Gasta.
+`items` sudah terurut (bagian dulu, lalu `order`); produk cukup mengelompokkan per `section`. `icon` adalah **kunci**, bukan alamat: tiap produk memetakannya ke berkas ikonnya sendiri (`docs`, `sheets`, `slides`, `drive`, `kisara-mail`, `akun-kisara`, `portal-asn`, `nawasara`, `gasta`); `icon_url`/`abbreviation`/`color` hanya cadangan untuk kunci yang belum dikenal produk. `id` = slug katalog, stabil. Isi bawaan setelah `LauncherSeeder`: Docs, Sheets, Slides, Drive (audience `workspace`), Mail (audience `mail`), Akun | Portal ASN, Nawasara, Gasta.
+
+`launcher_audience` = `all` atau **kunci layanan** Akses Layanan Kisara (`workspace`, `mail`, ...): item hanya tampil bagi yang boleh memakai layanan itu. Nilai lama `workspace-pilot` diganti `workspace` oleh migrasi `2026_11_19_100002`, dan tetap dibaca sebagai `workspace` bila masih ada. ⚠️ Migrasi tidak mengubah audience baris Mail yang sudah ada di produksi (tadinya `all`): ubah sendiri di Katalog Aplikasi bila ikon Mail hanya untuk peserta.
 
 Menambah atau mengubah isi menu: panel **Katalog Aplikasi** → Ubah/Tambah → bagian "Menu 9 titik Kisara" (Bagian, Untuk, Label Menu, Kunci Ikon, Urutan Menu). Aplikasi yang hanya untuk menu dibuat dengan "Tampil di Portal ASN" dimatikan.
+
+### Akses Layanan Kisara (server layanan Kisara: Kisara Mail)
+
+Prefix `/api/v1/kisara`. Middleware: `api.auth` (token `nws_` milik server layanan) → `scope:asn-portal.access.read` → `api.log` → 600/menit per IP (`ASN_PORTAL_ACCESS_RATE_PER_MINUTE`). Scope sendiri, terpisah dari menu 9 titik: token menu tidak bisa bertanya soal akses, dan sebaliknya.
+
+| Metode | Path | Isi |
+|---|---|---|
+| GET | `/access/{nip}?app=mail` | `{nip, app, allowed, reason, stage}`. Selalu 200 untuk layanan yang dikenal, termasuk penolakan. 422 `unknown_app` bila `app` kosong atau tidak ada di `config('nawasara-asn-portal.access.apps')` |
+
+```json
+{"data": {"nip": "199001012020121001", "app": "mail", "allowed": false, "reason": "not_participant", "stage": null}}
+```
+
+`reason` (urutan pemeriksaan, sama dengan `AccessDecider` Workspace): `invalid_nip` (bukan 18 digit; login admin pun dijawab 200, bukan 404) → `kill_switch` → `account_disabled` (akun Kisara nonaktif di snapshot Keycloak) → terbuka untuk semua (`allowed`, `stage` 3) → `not_participant` / `revoked` (ada baris, tapi dinonaktifkan). Tanpa nama, email, atau OPD: daftar-izin di `KisaraAccessResource`.
+
+Kisara Workspace tidak memanggil endpoint ini: Workspace Web tetap bertanya `/api/v1/workspace/access/{nip}`, dan `nawasara/workspace` sendiri bertanya `KisaraAccess` di dalam proses (lihat README-nya).
 
 ### Publik (tanpa login)
 
@@ -210,7 +232,17 @@ Batas per IP.
 
 **Menu 9 titik memakai katalog yang sama dengan kolom sendiri, bukan tabel kedua dan bukan memangkas katalog** (ADR 0006 di `docs/plan/kisara-workspace`). Katalog adalah daftar aplikasi SSO yang ditampilkan Portal ASN; memangkasnya agar cocok dengan menu akan mengosongkan Portal ASN, dan tabel kedua berarti dua katalog untuk hal yang sama. Maka `launcher_section`/`launcher_sort`/`launcher_audience`/`launcher_label`/`launcher_icon` terpisah dari `sort_order`, dan `show_in_portal` (bawaan `true`, sehingga semua baris lama tetap di tempatnya) membuat Docs atau Drive bisa ada di menu tanpa muncul sebagai kartu di Portal ASN. `LauncherSeeder` sengaja tidak dijalankan migrasi: memasang paket tidak mengubah apa pun sampai seseorang memutuskan menyalakan menu, dan baris yang sudah ada (slug sama, atau URL sama) hanya diisi kolom menunya, sekali, tanpa menimpa suntingan admin.
 
-**Aplikasi pilot ditentukan `AccessDecider` milik `nawasara/workspace`, dan tertutup bila ragu.** Aturan yang sama dipakai API akses Workspace dan grup Keycloak `workspace-pilot` (ADR 0004), jadi menu tidak pernah menawarkan Docs kepada orang yang pintunya lalu menolak; kill switch pun menyembunyikannya. `nawasara/workspace` bukan dependensi paket ini: bila kelasnya tidak ada, atau decider melempar galat, item `workspace-pilot` disembunyikan (`WorkspacePilot`). Ikon Docs yang hilang hanya kurang nyaman; ikon yang membawa setiap ASN ke halaman "sedang uji coba" adalah bug yang terlihat. Nilai `launcher_audience` yang tak dikenal juga tidak ditampilkan.
+**Item berakses ditentukan `KisaraAccess`, dan tertutup bila ragu.** Aturan yang sama dipakai pintu setiap layanan (API akses Kisara Mail, API akses dan grup Keycloak `workspace-pilot` milik Workspace), jadi menu tidak pernah menawarkan Docs kepada orang yang pintunya lalu menolak; kill switch pun menyembunyikannya. Bila pemeriksaan melempar galat, item itu disembunyikan. Ikon Docs yang hilang hanya kurang nyaman; ikon yang membawa setiap ASN ke halaman "sedang uji coba" adalah bug yang terlihat. Nilai `launcher_audience` yang tak dikenal juga tidak ditampilkan.
+
+**Akses Layanan Kisara tinggal di paket ini, bukan di `nawasara/workspace`.** Paket ini sudah memegang katalog aplikasi Kisara dan menu 9 titik, jadi layanan berikutnya cukup satu entri di `config('nawasara-asn-portal.access.apps')`, tanpa bergantung pada Workspace. Arah ketergantungannya dibalik dari sebelumnya: kini `nawasara/workspace` yang mencari `KisaraAccess` lewat nama kelas (bukan dependensi composer), dan mendengarkan event `KisaraAccessChanged` untuk menyamakan grup Keycloak-nya.
+
+**Satu baris per (NIP, layanan), unik untuk SEMUA baris, bukan hanya yang aktif.** MySQL tidak punya indeks unik bersyarat. "Nonaktifkan" mengisi `removed_at` pada baris yang sama, "Aktifkan" mengosongkannya; riwayat siapa melakukan apa ada di log aktivitas (`kisara-access`). "Hapus" (dengan sudo) hanya untuk salah input dan menghapus semua baris orang itu.
+
+**Daftar pilot Workspace disalin di dalam migrasi yang membuat tabelnya, bukan langkah manual.** Workspace beralih ke tabel ini begitu tabelnya ada; langkah terpisah berarti semua peserta terkunci dari Workspace di antara `migrate` dan langkah itu. Yang disalin: baris AKTIF saja, masing-masing ke `workspace` DAN `mail` (keputusan pemilik: semua peserta Workspace juga mencoba Mail), dengan tahap, catatan, `added_by`, id Keycloak, dan tanggal ditambahkan; OPD override hanya untuk `workspace`; kill switch dan `pilot_open` Workspace menjadi pengaturan layanan `workspace`. Baris yang sudah ada tidak pernah ditimpa, jadi `KisaraAccessImportSeeder` aman diulang.
+
+**`opd_id` tanpa foreign key.** Paket ini tidak bergantung pada `nawasara/registry`. Kolomnya hanya diisi untuk layanan yang konfigurasinya `opd_override => true` (Workspace: Folder OPD bila SIMAS keliru), dan pilihan OPD di formulir dibaca dari tabel registry bila ada.
+
+**Kill switch dan "buka untuk semua" di-cache 30 detik**, pemanggil menyimpan jawaban 60 detik: perubahan sampai ke semua pintu dalam sekitar 90 detik. Menyalakan kill switch dan menutup kembali "buka untuk semua" butuh sudo, karena keduanya mencabut akses banyak orang sekaligus; arah sebaliknya tidak.
 
 **Jawaban menu hanya punya dua varian, dan dibuat ramah cache.** Isinya tergantung katalog dan satu bit (peserta atau bukan), tidak memuat apa pun tentang orangnya. Katalog di-cache 5 menit di Nawasara dan dibersihkan setiap kali baris katalog disimpan atau dihapus; `ETag` adalah hash isi, sehingga produk yang mengirim `If-None-Match` mendapat 304. Produk tetap wajib menyimpan salinan terakhir yang berhasil (FR-03 AC-4): Nawasara mati tidak boleh menghilangkan menu.
 
@@ -286,7 +318,10 @@ Batas per IP.
 | `asn-portal.content.manage` | mengubah katalog, bantuan, dan draf dokumen hukum |
 | `asn-portal.legal.publish` | menerbitkan dokumen hukum (mengikat semua ASN, tidak bisa diubah sesudahnya) |
 
-- `asn-portal.usage.view` — halaman **Pemakaian Email** (`/nawasara-asn-portal/usage`): pembukaan mailbox per minggu per jalur (Roundcube lewat Akun Kisara vs Kisara Mail) dan ASN unik, untuk memutuskan kapan Kisara Mail dapat menggantikan Roundcube (FR-25 Kisara Mail).
+| `asn-portal.access.view` | halaman **Akses Layanan Kisara** (`/nawasara-asn-portal/access`) |
+| `asn-portal.access.manage` | menambah, mengubah, menonaktifkan, menghapus (sudo) akses; kill switch (sudo) dan "buka untuk semua" per layanan |
+
+- `asn-portal.usage.view`: halaman **Pemakaian Email** (`/nawasara-asn-portal/usage`): pembukaan mailbox per minggu per jalur (Roundcube lewat Akun Kisara vs Kisara Mail) dan ASN unik, untuk memutuskan kapan Kisara Mail dapat menggantikan Roundcube (FR-25 Kisara Mail).
 
 ## Roadmap
 

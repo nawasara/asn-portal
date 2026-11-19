@@ -26,10 +26,18 @@ use Nawasara\Api\Services\TokenManager;
 use Nawasara\AsnPortal\Database\Seeders\ContentSeeder;
 use Nawasara\AsnPortal\Database\Seeders\LauncherSeeder;
 use Nawasara\AsnPortal\Http\Api\PublicContentController;
+use Nawasara\AsnPortal\Models\AppAccess;
 use Nawasara\AsnPortal\Models\PortalApp;
-use Nawasara\AsnPortal\Support\WorkspacePilot;
-use Nawasara\Workspace\Models\PilotMember;
-use Nawasara\Workspace\Models\Setting;
+use Nawasara\AsnPortal\Services\KisaraAccess;
+
+// Dideklarasikan sebelum dipakai: kelas turunan tidak di-hoist PHP.
+class UjiAksesRusak extends KisaraAccess
+{
+    public function allows(string $app, string $nip): array
+    {
+        throw new RuntimeException('db mati');
+    }
+}
 
 $gagal = 0;
 $cek = function (string $label, bool $ok, string $detail = '') use (&$gagal) {
@@ -54,8 +62,10 @@ foreach (glob($root.'/packages/nawasara-api/database/migrations/*.php') as $f) {
 $migrasiAsn = glob($root.'/packages/nawasara-asn-portal/database/migrations/*.php');
 sort($migrasiAsn);
 $migrasiLauncher = null;
+$migrasiAudience = null;
 foreach ($migrasiAsn as $f) {
     if (str_contains($f, 'add_launcher_columns')) { $migrasiLauncher = $f; continue; }
+    if (str_contains($f, 'rename_workspace_pilot_launcher_audience')) { $migrasiAudience = $f; continue; }
     (require $f)->up();
 }
 
@@ -77,6 +87,8 @@ $cols = Schema::getColumnListing('nawasara_asn_portal_apps');
 $cek('enam kolom baru ada', array_diff(['show_in_portal', 'launcher_section', 'launcher_sort', 'launcher_audience', 'launcher_label', 'launcher_icon'], $cols) === []);
 $cek('baris lama: tetap di portal, belum di menu', PortalApp::where('show_in_portal', false)->count() === 0 && PortalApp::whereNotNull('launcher_section')->count() === 0);
 
+(require $migrasiAudience)->up(); // urutan produksi: kolom dulu, lalu ganti nama audience
+
 (new LauncherSeeder)->run();
 $jumlah = PortalApp::count();
 (new LauncherSeeder)->run();
@@ -91,10 +103,14 @@ $cek('/public/apps identik sebelum dan sesudah', $portalSebelum === $portalSesud
 $cek('/public/apps tidak kosong (uji bermakna)', count(json_decode($portalSesudah, true)['data']) === 6);
 $cek('urutan portal (sort_order) tidak disentuh', PortalApp::where('slug', 'portal-lama')->value('sort_order') === 5);
 
-// Peserta pilot aktif, bukan peserta, dan bukan NIP.
+// Peserta Workspace + Mail, peserta Mail saja, dan bukan peserta.
 $peserta = '199506142020121004';
 $bukan = '199001012015011001';
-PilotMember::create(['nip' => $peserta, 'name' => 'Pringgo', 'stage' => 0]);
+$mailSaja = '198604082020121003';
+AppAccess::create(['nip' => $peserta, 'app' => 'workspace', 'name' => 'Pringgo', 'stage' => 0]);
+AppAccess::create(['nip' => $peserta, 'app' => 'mail', 'name' => 'Pringgo', 'stage' => 0]);
+AppAccess::create(['nip' => $mailSaja, 'app' => 'mail', 'name' => 'Warist', 'stage' => 1]);
+$akses = app(KisaraAccess::class);
 
 $tokens = $app->make(TokenManager::class);
 $tokenOk = $tokens->create('uji launcher', ['asn-portal.launcher.read'])['plaintext'];
@@ -125,7 +141,9 @@ $resBukan = $get('?nip='.$bukan, $tokenOk);
 $cek('peserta: 200', $resPeserta->getStatusCode() === 200, substr($resPeserta->getContent(), 0, 200));
 $urutPeserta = ['kisara-docs', 'kisara-sheets', 'kisara-slides', 'kisara-drive', 'kisara-mail', 'akun-kisara', 'portal-lama', 'nawasara', 'gasta'];
 $cek('peserta melihat Docs, Sheets, Slides, Drive, lalu Mail, Akun, Portal ASN, Nawasara, Gasta', $ids($resPeserta) === $urutPeserta, implode(',', $ids($resPeserta)));
-$cek('bukan peserta: Docs/Sheets/Slides/Drive tidak ada', $ids($resBukan) === ['kisara-mail', 'akun-kisara', 'portal-lama', 'nawasara', 'gasta'], implode(',', $ids($resBukan)));
+$cek('bukan peserta: tanpa Docs/Sheets/Slides/Drive dan tanpa Mail', $ids($resBukan) === ['akun-kisara', 'portal-lama', 'nawasara', 'gasta'], implode(',', $ids($resBukan)));
+$cek('peserta Mail saja: Mail ada, Docs dkk tidak', $ids($get('?nip='.$mailSaja, $tokenOk)) === ['kisara-mail', 'akun-kisara', 'portal-lama', 'nawasara', 'gasta'], implode(',', $ids($get('?nip='.$mailSaja, $tokenOk))));
+$cek('seeder: audience Docs = workspace, Mail = mail', PortalApp::where('slug', 'kisara-docs')->value('launcher_audience') === 'workspace' && PortalApp::where('slug', 'kisara-mail')->value('launcher_audience') === 'mail');
 $cek('label stabil', array_column($items($resPeserta), 'label') === ['Docs', 'Sheets', 'Slides', 'Drive', 'Mail', 'Akun', 'Portal ASN', 'Nawasara', 'Gasta'],
     implode(',', array_column($items($resPeserta), 'label')));
 $data = json_decode($resPeserta->getContent(), true)['data'];
@@ -144,7 +162,7 @@ $cek('bukan peserta lain: jawaban sama persis (cache-able per varian)', $get('?n
 
 PortalApp::where('slug', 'gasta')->first()->update(['launcher_label' => 'Gasta CCTV']);
 $res = $get('?nip='.$bukan, $tokenOk);
-$cek('ubah label di panel: cache katalog dibersihkan, label baru keluar', (array_column($items($res), 'label')[4] ?? null) === 'Gasta CCTV', implode(',', array_column($items($res), 'label')));
+$cek('ubah label di panel: cache katalog dibersihkan, label baru keluar', (array_column($items($res), 'label')[3] ?? null) === 'Gasta CCTV', implode(',', array_column($items($res), 'label')));
 $cek('ETag berubah setelah katalog berubah', $res->headers->get('ETag') !== $resBukan->headers->get('ETag'));
 
 PortalApp::where('slug', 'nawasara')->first()->update(['is_active' => false]);
@@ -155,20 +173,28 @@ DB::table('nawasara_asn_portal_apps')->where('slug', 'gasta')->update(['launcher
 Cache::forget(PortalApp::LAUNCHER_CACHE_KEY);
 $cek('audience tak dikenal: tidak tampil (fail closed)', ! in_array('gasta', $ids($get('?nip='.$peserta, $tokenOk)), true));
 
-echo "\n=== status pilot ===\n";
-Setting::setFlag(Setting::KILL_SWITCH, true);
-$cek('kill switch: peserta pun tanpa Docs', ! in_array('kisara-docs', $ids($get('?nip='.$peserta, $tokenOk)), true));
-Setting::setFlag(Setting::KILL_SWITCH, false);
-Setting::setFlag(Setting::PILOT_OPEN, true);
-$cek('pilot_open (tahap 3): bukan peserta pun melihat Docs', in_array('kisara-docs', $ids($get('?nip='.$bukan, $tokenOk)), true));
-Setting::setFlag(Setting::PILOT_OPEN, false);
+echo "\n=== status akses ===\n";
+$akses->setFlag('workspace', KisaraAccess::FLAG_KILL_SWITCH, true);
+$cek('kill switch workspace: peserta pun tanpa Docs, Mail tetap', ! in_array('kisara-docs', $ids($get('?nip='.$peserta, $tokenOk)), true) && in_array('kisara-mail', $ids($get('?nip='.$peserta, $tokenOk)), true));
+$akses->setFlag('workspace', KisaraAccess::FLAG_KILL_SWITCH, false);
+$akses->setFlag('workspace', KisaraAccess::FLAG_OPEN, true);
+$cek('workspace terbuka untuk semua (tahap 3): bukan peserta pun melihat Docs', in_array('kisara-docs', $ids($get('?nip='.$bukan, $tokenOk)), true));
+$akses->setFlag('workspace', KisaraAccess::FLAG_OPEN, false);
+AppAccess::where('nip', $peserta)->where('app', 'workspace')->first()->update(['removed_at' => now()]);
+$cek('akses workspace dinonaktifkan: Docs hilang', ! in_array('kisara-docs', $ids($get('?nip='.$peserta, $tokenOk)), true));
+AppAccess::where('nip', $peserta)->where('app', 'workspace')->first()->update(['removed_at' => null]);
 
-$tanpa = new WorkspacePilot($app, 'Nawasara\\Workspace\\Services\\TidakAda');
-$cek('nawasara/workspace tidak terpasang: dianggap bukan peserta', $tanpa->available() === false && $tanpa->allows($peserta) === false);
-$cek('decider melempar galat: dianggap bukan peserta', (new WorkspacePilot($app, UjiDeciderRusak::class))->allows($peserta) === false);
-$cek('decider terpasang: peserta dikenali', (new WorkspacePilot($app))->allows($peserta) === true);
+DB::table('nawasara_asn_portal_apps')->where('slug', 'kisara-sheets')->update(['launcher_audience' => 'workspace-pilot']);
+Cache::forget(PortalApp::LAUNCHER_CACHE_KEY);
+$cek('nilai lama workspace-pilot tetap dibaca sebagai workspace', in_array('kisara-sheets', $ids($get('?nip='.$peserta, $tokenOk)), true) && ! in_array('kisara-sheets', $ids($get('?nip='.$bukan, $tokenOk)), true));
+
+$app->instance(KisaraAccess::class, new UjiAksesRusak);
+$cek('pemeriksaan akses melempar galat: item berakses disembunyikan, sisanya tetap', $ids($get('?nip='.$peserta, $tokenOk)) === ['akun-kisara', 'portal-lama', 'nawasara'], implode(',', $ids($get('?nip='.$peserta, $tokenOk))));
+$app->instance(KisaraAccess::class, $akses);
 
 echo "\n=== migrasi dapat dibalik ===\n";
+(require $migrasiAudience)->down();
+$cek('down() audience: workspace kembali ke workspace-pilot', PortalApp::where('slug', 'kisara-docs')->value('launcher_audience') === 'workspace-pilot');
 $m->down();
 $cols = Schema::getColumnListing('nawasara_asn_portal_apps');
 $cek('down() membuang keenam kolom', array_intersect(['show_in_portal', 'launcher_section', 'launcher_sort', 'launcher_audience', 'launcher_label', 'launcher_icon'], $cols) === []);
@@ -178,10 +204,3 @@ $cek('up() lagi setelah down() berhasil', Schema::hasColumn('nawasara_asn_portal
 echo "\n".($gagal === 0 ? 'SEMUA LULUS' : "ADA {$gagal} YANG GAGAL")."\n";
 exit($gagal === 0 ? 0 : 1);
 
-class UjiDeciderRusak
-{
-    public function decide(string $nip): array
-    {
-        throw new RuntimeException('db mati');
-    }
-}

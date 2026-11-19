@@ -71,7 +71,8 @@
                                     @endunless
                                     @if ($row->launcher_section)
                                         <x-nawasara-ui::badge color="info">
-                                            Menu 9 titik{{ $row->launcher_audience === \Nawasara\AsnPortal\Models\PortalApp::AUDIENCE_WORKSPACE_PILOT ? ': pilot' : '' }}
+                                            @php $audienceApp = \Nawasara\AsnPortal\Models\PortalApp::audienceApp((string) $row->launcher_audience); @endphp
+                                            Menu 9 titik{{ $audienceApp ? ': akses '.(\Nawasara\AsnPortal\Services\KisaraAccess::apps()[$audienceApp]['short'] ?? $audienceApp) : '' }}
                                         </x-nawasara-ui::badge>
                                     @endif
                                 </div>

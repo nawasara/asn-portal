@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Nawasara\AsnPortal\Livewire\Access\Index as AccessIndex;
 use Nawasara\AsnPortal\Livewire\App\Index as AppIndex;
 use Nawasara\AsnPortal\Livewire\Help\Index as HelpIndex;
 use Nawasara\AsnPortal\Livewire\Legal\Index as LegalIndex;
@@ -19,6 +20,10 @@ Route::middleware(['web', 'auth'])->prefix('nawasara-asn-portal')->group(functio
     Route::get('legal', LegalIndex::class)
         ->middleware(PermissionMiddleware::using('asn-portal.content.view'))
         ->name('nawasara-asn-portal.legal.index');
+
+    Route::get('access', AccessIndex::class)
+        ->middleware(PermissionMiddleware::using('asn-portal.access.view'))
+        ->name('nawasara-asn-portal.access.index');
 
     Route::get('usage', UsageIndex::class)
         ->middleware(PermissionMiddleware::using('asn-portal.usage.view'))

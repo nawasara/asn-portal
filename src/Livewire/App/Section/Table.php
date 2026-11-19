@@ -11,6 +11,7 @@ use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use Nawasara\AsnPortal\Models\PortalApp;
+use Nawasara\AsnPortal\Services\KisaraAccess;
 use Nawasara\AuthPrimitives\Attributes\RequiresSudo;
 use Nawasara\AuthPrimitives\Traits\WithSudo;
 
@@ -84,10 +85,12 @@ class Table extends Component
     /** @return array<string, string> */
     public function launcherAudienceOptions(): array
     {
-        return [
-            PortalApp::AUDIENCE_ALL => 'Semua ASN',
-            PortalApp::AUDIENCE_WORKSPACE_PILOT => 'Hanya peserta pilot Workspace',
-        ];
+        $options = [PortalApp::AUDIENCE_ALL => 'Semua ASN'];
+        foreach (KisaraAccess::apps() as $key => $app) {
+            $options[$key] = 'Hanya yang punya akses '.$app['label'];
+        }
+
+        return $options;
     }
 
     #[Computed]
@@ -132,6 +135,9 @@ class Table extends Component
             'show_in_portal', 'launcher_section', 'launcher_sort', 'launcher_audience',
             'launcher_label', 'launcher_icon',
         ]));
+        // A row not yet migrated still says `workspace-pilot`; show it as the
+        // app it means, or saving would fail validation.
+        $this->launcher_audience = PortalApp::audienceApp($this->launcher_audience) ?? PortalApp::AUDIENCE_ALL;
 
         $this->dispatch('modal-open:portal-app-form');
     }
@@ -168,7 +174,7 @@ class Table extends Component
             'show_in_portal' => ['boolean'],
             'launcher_section' => ['nullable', Rule::in(PortalApp::LAUNCHER_SECTIONS)],
             'launcher_sort' => ['integer', 'min:0', 'max:99999'],
-            'launcher_audience' => ['required', Rule::in(PortalApp::LAUNCHER_AUDIENCES)],
+            'launcher_audience' => ['required', Rule::in(PortalApp::launcherAudiences())],
             'launcher_label' => ['nullable', 'string', 'max:40'],
             // A key each product maps to its own icon file, not an address.
             'launcher_icon' => ['nullable', 'string', 'max:64', 'regex:/^[a-z0-9]+(-[a-z0-9]+)*$/'],

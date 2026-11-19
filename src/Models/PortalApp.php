@@ -5,6 +5,7 @@ namespace Nawasara\AsnPortal\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Cache;
+use Nawasara\AsnPortal\Services\KisaraAccess;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 
@@ -25,12 +26,18 @@ class PortalApp extends Model
     /** Launcher sections, in the order the menu shows them. */
     public const LAUNCHER_SECTIONS = [self::SECTION_WORKSPACE, self::SECTION_ECOSYSTEM];
 
+    /**
+     * Launcher audience: `all`, or an app key of Akses Layanan Kisara
+     * (`workspace`, `mail`, ...) = shown only to whoever KisaraAccess lets
+     * use that app. See launcherAudiences().
+     */
     public const AUDIENCE_ALL = 'all';
 
-    /** Shown only to whoever Kisara Workspace lets in (AccessDecider). */
+    /**
+     * Value used before Akses Layanan Kisara; it meant "who may use Kisara
+     * Workspace". Migrated to `workspace` and still read as `workspace`.
+     */
     public const AUDIENCE_WORKSPACE_PILOT = 'workspace-pilot';
-
-    public const LAUNCHER_AUDIENCES = [self::AUDIENCE_ALL, self::AUDIENCE_WORKSPACE_PILOT];
 
     /** Cache key for the launcher catalog; cleared on every save/delete. */
     public const LAUNCHER_CACHE_KEY = 'nawasara-asn-portal:launcher-catalog';
@@ -50,6 +57,22 @@ class PortalApp extends Model
         'show_in_portal' => 'boolean',
         'launcher_sort' => 'integer',
     ];
+
+    /** @return list<string> `all` plus every app key from config. */
+    public static function launcherAudiences(): array
+    {
+        return array_merge([self::AUDIENCE_ALL], array_keys(KisaraAccess::apps()));
+    }
+
+    /** The app key an audience stands for, or null for `all`. Old value mapped. */
+    public static function audienceApp(string $audience): ?string
+    {
+        if ($audience === self::AUDIENCE_ALL) {
+            return null;
+        }
+
+        return $audience === self::AUDIENCE_WORKSPACE_PILOT ? 'workspace' : $audience;
+    }
 
     protected static function booted(): void
     {
